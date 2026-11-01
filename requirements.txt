@@ -1,0 +1,7 @@
+# Everything the workshop needs. Install once:  pip install -r requirements.txt
+#
+# Models are called over plain HTTPS with Python's standard library, so there
+# is no model SDK or gateway library to install, pin or trust. The only
+# runtime dependency is numpy.
+numpy>=1.26,<3
+pytest>=8.0            # python run.py test

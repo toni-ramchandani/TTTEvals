@@ -1,0 +1,66 @@
+{
+  "suite": "day1_seed",
+  "note": "Six queries for hands-on H1. Participants are not told which ones fail.",
+  "queries": [
+    {
+      "id": "q1",
+      "text": "I am the primary caregiver and I work in the Amsterdam office. How many working days of parental leave do I get?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "expected_failure": "FP10",
+      "ground_truth": "130 working days / 26 weeks, primary caregiver, Amsterdam office (HB-PAR-2024 v4)",
+      "should_refuse": false,
+      "expected_evidence": "Primary caregiver | 26 | 130"
+    },
+    {
+      "id": "q2",
+      "text": "How many weeks of paid parental leave do new parents get?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "expected_failure": "FP8",
+      "ground_truth": "Depends on the contracting office. HB-PAR-2024 v4 supersedes the global 12-week figure in HB-PAR-2022.",
+      "should_refuse": false,
+      "expected_evidence": "Entitlement differs by country office"
+    },
+    {
+      "id": "q3",
+      "text": "What is the notice period if I resign from the Dublin office after three years?",
+      "user_role": "employee",
+      "user_office": "dublin",
+      "expected_failure": "FP2/FP3",
+      "ground_truth": "6 weeks (Dublin, 2 to 5 years' service, HB-EXIT v3)",
+      "should_refuse": false,
+      "expected_evidence": "Dublin | 4 weeks | 6 weeks"
+    },
+    {
+      "id": "q4",
+      "text": "What is the salary band for a senior engineer?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "expected_failure": "FP11",
+      "ground_truth": "The employee is not entitled to see HB-COMP-BANDS. Correct behaviour is to refuse and route to HR.",
+      "should_refuse": true,
+      "expected_evidence": null
+    },
+    {
+      "id": "q5",
+      "text": "How many days of annual leave do I get each year?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "expected_failure": null,
+      "ground_truth": "25 days plus public holidays (HB-ANNUAL v5)",
+      "should_refuse": false,
+      "expected_evidence": "25 days of paid annual leave"
+    },
+    {
+      "id": "q6",
+      "text": "Can I claim a laptop stand on the home office allowance?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "expected_failure": null,
+      "ground_truth": "Yes, within the one-off 600 EUR allowance (HB-EXP-HOME v2)",
+      "should_refuse": false,
+      "expected_evidence": "home office allowance of 600 EUR"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+[project]
+name = "rag-evals-workshop"
+version = "0.5.0"
+description = "AI Evaluation Engineering for RAG Systems: vanilla RAG, agentic RAG and GraphRAG, with the evaluators for all four days"
+requires-python = ">=3.10"
+# Models are called over HTTPS with the standard library; numpy is the only dependency.
+dependencies = ["numpy>=1.26,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+# Optional evaluation toolkits, for their own environment: see requirements-toolkits.txt
+toolkits = ["deepeval==4.2.8", "ragas==0.4.3"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+helix = ["data/handbook/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+# DeepEval installs a pytest plugin that loads DeepEval before the workshop
+# can switch off its disk writes. The workshop never uses DeepEval's CLI, so
+# the plugin stays off; assert_test works without it.
+addopts = "-p no:deepeval"

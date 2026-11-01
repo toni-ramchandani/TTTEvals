@@ -1,0 +1,275 @@
+{
+  "suite": "architectures",
+  "note": "Day 3 comparison set: the same thirteen questions through vanilla Helix, agentic RAG and GraphRAG. Each question is there because at least one architecture gets it wrong. Correct means every must_include string is present, no must_not_include string is present, and the refusal behaviour matches.",
+  "queries": [
+    {
+      "id": "a1",
+      "kind": "single fact, office and role stated",
+      "text": "I am the primary caregiver and I work in the Amsterdam office. How many working days of parental leave do I get?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "130 working days (26 weeks), primary caregiver, Amsterdam office, HB-PAR-2024 v4",
+      "must_include": [
+        "130"
+      ],
+      "must_not_include": [
+        "secondary",
+        "60 working days"
+      ],
+      "should_refuse": false,
+      "expected_tools": [
+        "search_handbook"
+      ],
+      "expected_evidence": "Primary caregiver | 26 | 130"
+    },
+    {
+      "id": "a2",
+      "kind": "office implied by who is asking",
+      "text": "As the primary caregiver, how many weeks of parental leave do I get?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "26 weeks: the user is contracted to Amsterdam (HB-PAR-2024 v4)",
+      "must_include": [
+        "26"
+      ],
+      "must_not_include": [
+        "secondary",
+        "60%"
+      ],
+      "should_refuse": false,
+      "expected_tools": [
+        "get_user_profile",
+        "search_handbook"
+      ],
+      "expected_evidence": "Primary caregiver | 26 | 130"
+    },
+    {
+      "id": "a3",
+      "kind": "comparison across offices",
+      "text": "Which office offers the longest primary caregiver parental leave?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "Amsterdam, 26 weeks (then Berlin 24, Dublin 18), HB-PAR-2024 v4",
+      "must_include": [
+        "amsterdam",
+        "26"
+      ],
+      "must_not_include": [
+        "60%"
+      ],
+      "should_refuse": false,
+      "expected_tools": [
+        "list_offices",
+        "search_handbook"
+      ],
+      "expected_evidence": "Primary caregiver | 26 | 130"
+    },
+    {
+      "id": "a4",
+      "kind": "two facts joined on one entity",
+      "text": "I am the primary caregiver in the Amsterdam office with three years' service, and I plan to resign after my leave. How much parental leave do I get, and what notice must I give?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "26 weeks (130 working days) of parental leave, then 1 month's notice (Amsterdam, 2 to 5 years). HB-PAR-2024 v4 and HB-EXIT v3",
+      "must_include": [
+        "26",
+        "1 month"
+      ],
+      "must_not_include": [
+        "secondary",
+        "60%"
+      ],
+      "should_refuse": false,
+      "expected_tools": [
+        "search_handbook",
+        "search_handbook"
+      ],
+      "expected_evidence": "Amsterdam | 1 month | 1 month"
+    },
+    {
+      "id": "a5",
+      "kind": "office named by an alias",
+      "text": "How many weeks of parental leave does a secondary caregiver get in the Netherlands?",
+      "user_role": "employee",
+      "user_office": "dublin",
+      "user_tenure_years": 1,
+      "ground_truth": "10 weeks (50 working days), secondary caregiver, Amsterdam office, HB-PAR-2024 v4",
+      "must_include": [
+        "10"
+      ],
+      "must_not_include": [
+        "60%",
+        "primary"
+      ],
+      "should_refuse": false,
+      "expected_tools": [
+        "search_handbook"
+      ],
+      "expected_evidence": "Secondary caregiver | 10 | 50"
+    },
+    {
+      "id": "a6",
+      "kind": "restricted document",
+      "text": "What is the salary band for a senior engineer?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "Refuse and route to HR: HB-COMP-BANDS is hr-only",
+      "must_include": [],
+      "must_not_include": [
+        "81000",
+        "95000",
+        "109000"
+      ],
+      "should_refuse": true,
+      "expected_tools": [
+        "search_handbook"
+      ],
+      "expected_evidence": null
+    },
+    {
+      "id": "a7",
+      "kind": "superseded policy still indexed",
+      "text": "How many weeks of paid parental leave do new parents get?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "It depends on the contracting office; HB-PAR-2024 v4 supersedes the 12-week global figure in HB-PAR-2022",
+      "must_include": [],
+      "must_not_include": [
+        "60%",
+        "12 weeks of paid"
+      ],
+      "must_cite_doc": "HB-PAR-2024",
+      "should_refuse": false,
+      "expected_tools": [
+        "get_user_profile",
+        "search_handbook",
+        "check_document_status"
+      ],
+      "expected_evidence": "Entitlement differs by country office"
+    },
+    {
+      "id": "a8",
+      "kind": "question names a different office from the asker's",
+      "text": "What is the notice period if I resign from the Dublin office after three years?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "6 weeks (Dublin, 2 to 5 years' service), HB-EXIT v3",
+      "must_include": [
+        "6 weeks"
+      ],
+      "must_not_include": [
+        "1 month"
+      ],
+      "should_refuse": false,
+      "expected_tools": [
+        "search_handbook"
+      ],
+      "expected_evidence": "Dublin | 4 weeks | 6 weeks"
+    },
+    {
+      "id": "a9",
+      "kind": "clean control",
+      "text": "How many days of annual leave do I get each year?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "25 days plus public holidays, HB-ANNUAL v5",
+      "must_include": [
+        "25"
+      ],
+      "must_not_include": [],
+      "should_refuse": false,
+      "expected_tools": [
+        "search_handbook"
+      ],
+      "expected_evidence": "25 days of paid annual leave"
+    },
+    {
+      "id": "a10",
+      "kind": "topic outside the graph schema",
+      "text": "Can I claim a laptop stand on the home office allowance?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "Yes, within the one-off 600 EUR allowance, HB-EXP-HOME v2",
+      "must_include": [
+        "600"
+      ],
+      "must_not_include": [],
+      "should_refuse": false,
+      "expected_tools": [
+        "search_handbook"
+      ],
+      "expected_evidence": "home office allowance of 600 EUR"
+    },
+    {
+      "id": "a11",
+      "kind": "nuance inside a topic the graph covers",
+      "text": "Can I spread my parental leave over several months if I work in the Amsterdam office?",
+      "user_role": "employee",
+      "user_office": "amsterdam",
+      "user_tenure_years": 3,
+      "ground_truth": "Yes: Amsterdam employees may spread the entitlement over the first twelve months, HB-PAR-2024 v4",
+      "must_include": [
+        "twelve months"
+      ],
+      "must_not_include": [],
+      "should_refuse": false,
+      "expected_tools": [
+        "search_handbook"
+      ],
+      "expected_evidence": "spread the entitlement over the first twelve months"
+    },
+    {
+      "id": "a12",
+      "kind": "office implied, second caregiver role, Berlin",
+      "text": "How many weeks of parental leave do I get as the secondary caregiver?",
+      "user_role": "employee",
+      "user_office": "berlin",
+      "user_tenure_years": 4,
+      "ground_truth": "8 weeks (40 working days): the user is contracted to Berlin, HB-PAR-2024 v4",
+      "must_include": [
+        "8"
+      ],
+      "must_not_include": [
+        "primary",
+        "60%",
+        "6 weeks of parental",
+        "10 weeks"
+      ],
+      "should_refuse": false,
+      "expected_tools": [
+        "get_user_profile",
+        "search_handbook"
+      ],
+      "expected_evidence": "Secondary caregiver | 8 | 40"
+    },
+    {
+      "id": "a13",
+      "kind": "office the current policy does not cover",
+      "text": "I work in the London office. How many weeks of parental leave do I get?",
+      "user_role": "employee",
+      "user_office": "london",
+      "user_tenure_years": 2,
+      "ground_truth": "HB-PAR-2024 v4 has no London entry and the 12-week global figure in HB-PAR-2022 is superseded. Correct behaviour: say the policy does not cover it and route to HR.",
+      "must_include": [],
+      "must_not_include": [
+        "12 weeks",
+        "60%"
+      ],
+      "should_refuse": true,
+      "expected_tools": [
+        "search_handbook",
+        "check_document_status"
+      ],
+      "expected_evidence": null
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+# Optional: the evaluation toolkits for Days 2 to 4 (DeepEval and Ragas).
+#
+# Install them into a SEPARATE virtual environment, never into .venv:
+#
+#   py -3.12 -m venv .venv-toolkits              macOS/Linux: python3.12 -m venv .venv-toolkits
+#   .venv-toolkits\Scripts\activate              macOS/Linux: source .venv-toolkits/bin/activate
+#   pip install -r requirements.txt -r requirements-toolkits.txt -c constraints-toolkits.txt
+#   pip install pip-audit && pip-audit
+#   python run.py toolkits
+#
+# Why a separate environment:
+#   - The core workshop has one runtime dependency (numpy) and no model SDK.
+#     These two bring dozens of packages, including the OpenAI SDK,
+#     LangChain, Instructor and Hugging Face datasets. The workshop never
+#     calls any of their model clients: every judge call goes through
+#     helix.llm (src/toolkits/judge.py), but the code is installed all the same.
+#   - DeepEval installs pytest plugins, which load into every pytest run in
+#     the environment they are installed in.
+#   - If either toolkit is ever compromised, deleting .venv-toolkits removes it.
+#
+# Use Python 3.12 or 3.13 here. Ragas pulls in compiled packages (pyarrow,
+# tiktoken, scikit-network, grpcio); a version without a published wheel for
+# your Python makes pip try to compile it, which fails on most laptops.
+#
+# Versions: exact, and at least two weeks old when chosen (2026-10-26).
+#   deepeval 4.2.8, released 2026-10-02. 4.2.9, 4.3.0 and 4.3.1 were under
+#     two weeks old. No advisory in the PyPA advisory database.
+#   ragas 0.4.3, released 2026-01-13, the latest release. Carries
+#     CVE-2026-6587 (SSRF in the multi-modal image loader, CVSS 6.3, no fix
+#     released). The workshop never builds the multi-modal metrics, and a test
+#     keeps it that way. See src/toolkits/ragas_metrics.py.
+#
+# What they do by default: both send usage telemetry; DeepEval reads .env
+# files, saves every evaluate() run and a result cache in .deepeval/, loads a
+# pytest plugin, and uploads results when it finds a Confident AI key. The
+# workshop turns all of that off before either is imported (src/toolkits/env.py,
+# pyproject.toml), so every score is live and nothing is stored.
+deepeval==4.2.8
+ragas==0.4.3

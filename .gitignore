@@ -1,0 +1,13 @@
+out/
+__pycache__/
+*.pyc
+*.egg-info/
+.env
+data/traces/*.jsonl
+data/annotations/*.csv
+data/queries/day2_synthetic*.json
+.deepeval/
+.venv-toolkits/
+
+.venv/
+.pytest_cache/
