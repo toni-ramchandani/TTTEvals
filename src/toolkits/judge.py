@@ -37,6 +37,10 @@ class JudgeStats:
     repaired: int = 0
     failed: int = 0
     by_schema: dict[str, int] = field(default_factory=dict)
+    #: (schema name, the validated object) for every structured reply, in
+    #: order. `python run.py toolkits --show` prints it: what the toolkit
+    #: asked the judge for, and what came back. Kept in memory only.
+    log: list[tuple[str, Any]] = field(default_factory=list)
 
     def line(self) -> str:
         return (f"{self.calls} judge calls, {self.repaired} replies needed a second attempt, "
@@ -76,7 +80,9 @@ def structured(prompt: str, schema_cls, cfg: Config, stats: JudgeStats | None = 
         stats.calls += 1
         text = complete(messages, jcfg, model=judge_model(cfg), json_schema=schema)[0]
         try:
-            return schema_cls.model_validate_json(extract_json(text))
+            obj = schema_cls.model_validate_json(extract_json(text))
+            stats.log.append((name, obj))
+            return obj
         except (ValidationError, ValueError) as exc:
             last_error = str(exc).splitlines()[0][:300]
             if attempt == 1:

@@ -58,6 +58,31 @@ Python 3.10 or newer.
 
 ---
 
+## Updating from an earlier version
+
+Your labels, sheets and traces live in `data/`, and a new version never ships a
+file that would replace them. The requirement files did not change in 0.8.0
+or 0.7.0, so `.venv` and `.venv-toolkits` stay as they are.
+
+1. Stop any command that is running.
+2. Extract the new zip into the folder that holds `rag-evals-workshop` (its
+   parent folder), and let it replace the files. `.env` is not in the zip, so
+   your settings stay.
+3. From 0.6.0 there is nothing to run again. From an older version, run
+   `python run.py day1` once: Day 3's citation check reads a field that older
+   traces do not have, and `day3` tells you when a trace is too old.
+4. Run `python run.py test`.
+
+The prompt for a single question did not change in 0.8.0 or 0.7.0, so with the same
+model at temperature 0 your Day 1 answers, and the Day 2 labels on them,
+normally stay the same. If an answer does change, its old label moves to the
+bottom of the sheet as "earlier answer". Nothing you wrote is deleted.
+
+The Day 3 sheet gains a third column, `complete`. `python run.py day3 --only
+validation` adds it and keeps the `grounded` and `correct` labels you wrote.
+
+---
+
 ## Choosing a model
 
 The model is set in `.env`, which `.env.example` documents, as
@@ -123,12 +148,20 @@ Everything goes through one file, `run.py`:
 | `python run.py day2` | Hands-on H2, error analysis: your model writes synthetic questions from dimension tuples (topic, asker, kind of question), Helix answers them with the asker's office and role; then open coding, axial coding (your model proposes groups), counts and saturation. `--annotate` to judge each trace in the terminal, `--label` to add failure modes, `--annotator NAME` for a second person's own sheet, `--new` for new questions | 2 |
 | `python run.py agreement` | Exercise 5.A: your labels against a second person's on the same traces. Percent agreement, Cohen's kappa overall and per failure mode (Landis and Koch and McHugh readings), the disagreements grouped by failure mode for the alignment session, then the golden set with a train/dev/test split. `--adjudicate` to decide each disagreement yourself and record why. Run it again after both of you label fresh traces with the revised rubric: it reports round 2 on those traces alone. With three or more sheets it reports Fleiss' kappa | 2 |
 | `python run.py evaluators` | Hands-on H3: an evaluator per failure mode, scored against the golden set. Code checks for stale evidence, entitlement, false refusal and missed refusal; one judged mode four ways: our binary judge (Pass and Fail definitions, examples from the train split, reasoning before the answer), G-Eval in our own code, DeepEval GEval, DeepEval DAG; TPR and TNR on dev, the G-Eval threshold read from the labels, and the failure rate corrected for each evaluator's errors with a 95% bootstrap interval. `--mode no_direct_answer` judges another mode, `--repeat 3` checks whether the judge's labels hold, `--split test` once at the end. Offline it prints the exact prompt the judge would receive | 2 |
-| `python run.py day3` | Retrieval metrics; groundedness and correctness from a checker and an LLM judge side by side; both validated against human verdicts | 3 |
-| `python run.py metrics` | Our metrics beside Ragas and DeepEval on the same traces: retrieval, faithfulness four ways, agent tool use. `--repeat 3` shows how much a judge's score moves | 3 |
+| `python run.py day3` | Modules 07 and 08. STEP 1 retrieval: the ingestion check (two versions of one page in the index), P@5, R@5, F1@5, hit rate, RR, AP and nDCG@5 on the ranking the `retrieve` span recorded, each stage scored on its own, where each relevant chunk ended up, and retrieval success crossed with answer correctness. STEP 2 grounding: groundedness and correctness crossed, from a checker and your judge, and the citation check. STEP 3 generation: completeness (nuggets), context use (omitted or never in the context), citation support and the direct-answer check. STEP 4 validation: every instrument against people on its own criterion (TPR and TNR), from the Day 3 sheet `data/annotations/day3_sheet.csv` (grounded, correct, complete: y or n). STEP 5 relevance: the direct-answer check against the Day 2 golden set. Opt in with `--only`: `swap` (the context-swap test), `consistency` (`--runs 3`), `chunkjudge` (the UMBRELA chunk-relevance judge). `--only retrieval,generation` runs those steps | 3 |
+| `python run.py chunking` | Module 07: chunk size, overlap and headings changed one at a time; each configuration re-indexed and scored on Recall@5, hit rate and nDCG@5, with how many questions' evidence survived to the model | 3 |
+| `python run.py metrics` | Our metrics beside Ragas and DeepEval on the same traces: retrieval, faithfulness four ways, agent tool use. `--ids q1,q4` for fewer calls, `--repeat 3` shows how much a judge's score moves | 3 |
+| `python run.py conversations` | Module 09: eight scripted sessions (2 to 6 turns) in three history modes (`last`, `window`, `condense`); each session pass or fail, its first failing turn with a code (MT1 to MT4 or FP), results by length, and N-1 and single-turn tests that separate a conversation failure from a retrieval one. Live: a session judge beside the code verdict, `--toolkits` for DeepEval's and Ragas's conversation metrics, `--repeat 3` for pass^3, `--simulate` for a simulated user. `--ids c5,c8` for fewer calls | 3 |
+| `python run.py robustness` | Module 09: seven families of behavioural tests on Day 1's Helix and the repaired one: paraphrase and office alias (invariance), asker's office (directional), noise and negative rejection, direct and indirect prompt injection with a page planted in memory. `--family injection_patterns` adds twenty more direct injection patterns. `--family` to pick, `--toolkits` for Ragas Noise Sensitivity | 3 |
 | `python run.py architectures` | Vanilla vs agentic vs GraphRAG on 13 questions. Add `--ablations` for the one-switch ablations, `--ids a1,a6` for a few questions | 3 |
-| `python run.py day4` | Before/after comparison and the release gate | 4 |
-| `python run.py ci` | The release gate as tests: the candidate answers every question live, then Day 2's code checks and a faithfulness floor are asserted on each answer | 4 |
-| `python run.py toolkits` | Check the DeepEval and Ragas environment: versions, telemetry off, one live metric from each | before Day 2 |
+| `python run.py agents` | Module 09: the agent's path one tool call at a time (Select, Args, Exec, Handle), the first failure in every wrong trace, the transition failure heatmap before and after the agent's switches, tool calls and tool success rate, planted tool faults (retries, recovery, fallback) and scope tests (only its own tools, arguments in their schema, nothing outside the asker's access, a search before every answer). `--ids`, `--only paths,faults,scope`, `--ablations` | 3 |
+| `python run.py redteam` | Module 09: seven attacks on the evaluators (padding, figure stuffing, authority, self-assessment, an instruction to the evaluator, a master key, a fake current citation) on eight answers known to fail; false passes per evaluator and attack. Code checks offline; the two judges live; `--toolkits` adds Ragas, DeepEval and DeepEval's G-Eval | 3 |
+| `python run.py day4` | Module 10: the regression suite (85 questions from Days 1 to 3, each with where it came from and its written pass condition), the shipped build and a candidate answering it now, and the release gate with three kinds of rule: floors (access, current policy, groundedness), a per-question ratchet against the shipped build, and budgets (tokens, p95 latency live, failed calls). Then provenance (what the config hash cannot see), cost and latency, and what runs when. `--candidate`, `--source day1,architectures`, `--price-in/--price-out`, `--strict` for CI | 4 |
+| `python run.py production` | Module 10: a SIMULATED month of traffic from Day 2's tuples (mix, feedback model and review budget stated in `src/evals/day4_production.py`): online code checks with intervals week by week, what thumbs-down feedback sees and misses, three review strategies at the same budget, promotion of failures into the suite, and an instrument edited in the same week as a release | 4 |
+| `python run.py compare` | Module 11: Wilson intervals, the paired 2 x 2 table, an exact McNemar test and the probability the candidate is better, how many changed questions a decision needs, where the difference comes from, what a weak instrument adds to the uncertainty, `--repeat 3` live for run-to-run change, and the decision record | 4 |
+| `python run.py capstone` | Module 12: localize each failure of the shipped build, try one change per cause, combine step by step with the gate at each step, inspect regressions and lost fixes, read the quality, token and latency trade-offs, and conclude. Your own experiment: `--change top_k=8`, `--transform current-only`, `--guard scope-v2`, `--on repaired` | 4 |
+| `python run.py ci` | The same gate as tests, run by DeepEval's runner: one test per suite question for the floors (plus DeepEval faithfulness live), one for the ratchet, one for the budgets. `--candidate`, `--source` | 4 |
+| `python run.py toolkits` | Check the DeepEval and Ragas environment: versions, telemetry off, one live metric from each. `--show q1` opens the box on one trace: the test case, then DeepEval and Ragas faithfulness step by step. `--module 07`, `08` or `09` is the Day 3 toolkit lens: every curriculum item of that module, our instrument beside DeepEval, G-Eval and Ragas on the same trace (07: contextual metrics on each stage of one ranking; 08: correctness, relevance, completeness, faithfulness, context utilization and citations; 09: attacks, a planted page and noise, graph answers, agent runs with planted faults). `--ids q1,q6` for 07 and 08, `--part agents` for 09 | before Day 2; Day 3 |
 | `python run.py ask "your question"` | Ask all three systems one question and watch each answer and its trace. Options: `--office berlin`, `--years 4`, `--system agent`, `--trace` | any |
 | `python run.py all` | Every day, end to end | |
 | `python run.py all --offline` | The reference run: the exact numbers on the slides, no model, a few seconds | |
@@ -142,13 +175,23 @@ VS Code or in Excel). What you write is never deleted by a script. Each row of
 `data/annotations/day2_sheet.csv` carries a fingerprint of the answer it
 judged: if that answer changes (you run Day 1 again, or switch models), your
 old note moves to the bottom of the sheet as "earlier answer" and the new
-answer waits for a fresh judgment. Day 3 validates its judge against the
-golden set from `agreement`, or your Day 2 verdicts.
+answer waits for a fresh judgment. The Day 3 sheet,
+`data/annotations/day3_sheet.csv`, works the same way: `day3 --only
+validation` writes it with one row per Day 1 answer, you fill two columns
+(grounded, correct), and every Day 3 instrument is measured against them.
 
 **How long a live run takes.** Day 1 is six answers. `architectures` is about
 200 model calls (the agent makes several per question): a few minutes on a
 laptop GPU or a cloud model, longer on CPU. Its ablations multiply that by
-thirteen, which is why they are opt-in live.
+thirteen, which is why they are opt-in live. `agents` is about 250 (`--ids
+a2,a7` for about 60); `conversations` about 130 for all eight sessions in
+three modes (`--ids c5,c8` for about 30); `robustness` about 70 (110 more with
+`--family injection_patterns`); `redteam` 88 judge calls; `toolkits --module`
+07 about 40 judge calls, 08 about 25 per question, 09 about 90 (`--part` for
+one of its four parts); `chunking` one
+embedding pass per configuration and no answers; `metrics` with both toolkits
+over 100 judge calls (`--ids` to cut it down). Time them once on your machine
+before you teach.
 
 ---
 
@@ -188,8 +231,11 @@ src/
     env.py               telemetry off, no cloud upload, what is installed
     cases.py             trace -> the test case both toolkits read
     judge.py             your judge model inside each toolkit, through helix.llm
-    deepeval_metrics.py  G-Eval, DAG, RAG and agent metrics; code checks as metrics
-    ragas_metrics.py     faithfulness, context precision/recall, factual correctness
+    kits.py              both toolkits with your judge and one call counter
+    deepeval_metrics.py  G-Eval (scope, correctness, completeness, citation support),
+                         DAG, RAG, agent and conversation metrics; code checks as metrics
+    ragas_metrics.py     faithfulness, context precision, recall and utilization,
+                         factual correctness, tool calls, goal accuracy, noise
   evals/                 the evaluators, one file per day's topic
     taxonomy.py          the failure codes: FP1-FP11, AG1-AG5, GR1-GR5
     day1_triage.py       which stage created this failure?
@@ -201,17 +247,34 @@ src/
                          its split and its rounds
     day2_evaluators.py   code checks per failure mode, our binary judge and G-Eval
                          code, TPR/TNR, the corrected rate and its interval
-    day3_retrieval.py    precision@k, recall@k, MRR, nDCG
-    day3_judges.py       groundedness and correctness judges, and checking them
+    day3_retrieval.py    precision, recall, F1, hit rate, MRR, MAP, nDCG; stages; ingestion
+    day3_chunking.py     the chunking grid
+    day3_generation.py   completeness, context use, citation support, direct answer,
+                         the context-swap and consistency tests
+    day3_judges.py       groundedness, correctness and chunk-relevance judges
+    day3_sheet.py        the Day 3 sheet: people's labels the judges are measured against
+    day3_conversations.py   sessions, their first failing turn, N-1 and single-turn tests
+    day3_robustness.py   the behavioural tests and the injection patterns
     day3_architectures.py   scoring and attributing all three systems
-    day4_compare.py      paired before/after comparison and the release gate
+    day3_agents.py       tool-call stages, first failure, the heatmap, faults, scope
+    day3_redteam.py      attacks on the evaluators
+    day3_lens.py         the Day 3 curriculum, ours beside DeepEval, G-Eval and Ragas
+    day4_compare.py      failure-point counts before and after (used by day1 --compare)
+    day4_suite.py        the regression suite, its checks, index transforms, scope guards
+    day4_gate.py         the release gate: floors, ratchet, budgets
+    day4_stats.py        Wilson intervals, exact McNemar, P(better), percentiles
+    day4_provenance.py   the fingerprint: template, corpus, suite, models, instruments
+    day4_production.py   the simulated month: online checks, feedback, review, drift
+    day4_report.py       the named builds and the intervention catalog
 scripts/                 one script per command; each is a readable walkthrough
 gates/                   the Day 4 release gate as tests (python run.py ci)
-data/queries/            the question sets for each day
+.github/workflows/       an example: the Day 4 gate on every pull request
+data/queries/            the question sets for each day; day4_suite_changes.json is
+                         yours: cases added from production, regressions accepted by name
 data/traces/             written by the scripts
 data/annotations/        written by the scripts, filled in by you
-tests/                   108 tests (114 in the toolkit environment): the reference results
-                         the slides quote, the live path, Day 2, the evaluators, the toolkits
+tests/                   183 tests (193 in the toolkit environment): the reference results
+                         the slides quote, the live path, Day 2, the evaluators, Day 3, the toolkits
 ```
 
 ---
@@ -349,11 +412,26 @@ graph failure, GR1 to GR5.
   golden set on its own mode (TPR and TNR), and its raw failure rate is
   corrected for its known errors (Rogan and Gladen), with a bootstrap
   interval.
-- **Day 3** `evals/day3_retrieval.py` scores retrieval (precision, recall,
-  MRR, nDCG); `day3_judges.py` scores groundedness and correctness separately
-  and checks the judge against human labels; `day3_architectures.py` scores
-  all three systems on the same questions and attributes every wrong answer to
-  a failure code.
+- **Day 3** `evals/day3_retrieval.py` scores retrieval on the ranking the
+  `retrieve` span recorded (precision, recall and F1 at k, hit rate,
+  reciprocal rank, average precision, nDCG with graded relevance), each stage
+  on its own, says where each relevant chunk ended up, and finds two versions
+  of one page in the index; `day3_chunking.py` re-indexes the handbook per
+  chunking setting and scores each; `day3_generation.py` checks what the
+  model did with its context (completeness against written nuggets,
+  omissions, citation support, a direct answer to a yes-or-no question, the
+  context-swap and consistency tests); `day3_judges.py` scores groundedness
+  and correctness separately and judges chunk relevance; `day3_sheet.py`
+  holds the human labels each instrument is measured against (TPR and TNR,
+  as on Day 2); `day3_architectures.py` scores all three systems on the same
+  questions and attributes every wrong answer to a failure code;
+  `day3_agents.py` locates the first failing stage of each tool call and
+  builds the transition failure heatmap, with planted tool faults and scope
+  tests; `day3_redteam.py` attacks the evaluators themselves;
+  `day3_conversations.py` judges sessions, then their first failing turn
+  (MT1 to MT4), with `helix/conversation.py` running Helix in three history
+  modes; `day3_robustness.py` runs the behavioural tests (CheckList, RGB,
+  OWASP LLM01 and LLM02).
 - **Day 4** `evals/day4_compare.py`: compares two configurations on the same
   questions and applies a release gate agreed in advance.
 
@@ -404,6 +482,25 @@ models and compare the matrices.
 
 ---
 
+## What the Day 4 run shows
+
+From the reference run (`python run.py all --offline`), on the 85-question suite:
+
+| Build | Pass | Leaks | Stale | Missed refusals | Model tokens | Gate |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| shipped (Day 1 default) | 31 | 11 | 12 | 16 | 33,063 | |
+| repaired (Day 1's repair) | 41 | 0 | 4 | 16 | 31,505 | BLOCK: q2, a7, r2, s22 cite the 2022 page; a13, r2, s16 regressed |
+| + current-only | 38 | 0 | 0 | 16 | 30,481 | BLOCK: a13 regressed |
+| + scope-v2 (the candidate) | 51 | 0 | 0 | 3 | 25,337 | BLOCK until a person decides on a13 |
+
+The repair is better (13 fixed, 3 broke, exact McNemar p = 0.021) and still
+cannot ship: better and shippable are different questions. a13 passed on the
+shipped build only because its evidence was cut before the model, which made
+Helix decline by luck. The production simulation is labelled SIMULATED
+wherever it prints; its lessons are about method, not about Helix.
+
+---
+
 ## When something goes wrong
 
 | Message | Fix |
@@ -427,7 +524,8 @@ you quickly, and what its defaults cannot see.
 | --- | --- | --- |
 | 1 | `day1` | Nothing yet. The script prints Sara's trace as the test case both toolkits read: the trace already holds every field they need |
 | 2 | `evaluators` | DeepEval GEval and a DAG metric judge the same failure mode as the workshop's own binary judge and G-Eval code, with the steps your judge writes in that run; all are checked against your labels |
-| 3 | `metrics` | Ragas and DeepEval faithfulness, context precision and recall, factual correctness and agent tool metrics, beside our instruments and the human verdict |
+| 3 | `toolkits --module 07`, `08`, `09` | In class, at the end of each module: every item of the Day 3 curriculum through DeepEval (contextual precision, recall and relevancy, answer relevancy, faithfulness, tool correctness, argument correctness, task completion), G-Eval (correctness, completeness, citation support) and Ragas (context precision, recall and utilization, factual correctness and its recall mode, faithfulness, answer relevancy, noise sensitivity, tool call F1 and accuracy, goal accuracy), beside our own instrument on the same trace. Where no toolkit has a metric (P@k, MRR, nDCG, consistency), the lens says so and why |
+| 3 | `metrics`, `redteam --toolkits`, `conversations --toolkits`, `robustness --toolkits` | Overnight: the same metrics on every question, beside the human verdict; the seven attacks on Ragas, DeepEval and G-Eval; DeepEval's and Ragas's conversation metrics; Ragas noise sensitivity on the noise family |
 | 4 | `ci` | The candidate configuration answers every question live, then DeepEval's `assert_test` runs the release gate, with Day 2's code checks inside it as metrics |
 
 **Set up a separate environment for them.** The core workshop needs only
@@ -481,24 +579,23 @@ python run.py test
 ```
 
 In VS Code the Testing panel (the flask icon) finds them automatically. The
-tests never call a model. Thirty-five pin every result the slides quote, from
-the reference run: the six Day 1 failures, the Day 3 matrix, and the code each
-switch produces. If one fails after you change something, a slide no longer
-matches the code. Twenty-three start a small fake model server on your own
-machine that speaks Ollama's API and the OpenAI-compatible one, and drive the
-real network code against it: streaming, tool calling in both formats,
-embeddings, JSON output for judges, local answers with a cloud judge in one
-run, citation and refusal detection on
-paraphrased answers, the agent's switches, judge parsing and the error
-messages. Forty cover Day 2: the synthetic tuples, the sheets and what they
-never delete, terminal annotation, Cohen's and Fleiss' kappa on worked
-examples, every reference figure on the Day 2 slides, the split and the
-judge examples it gives train, round 2 on fresh traces, saturation, and the
-whole reference run from a clean copy. Ten cover the Day 2 evaluators: the
-binary judge with a scripted model, our G-Eval code, the corrected failure
-rate and its bootstrap interval, and the safety settings.
+tests never call a model. Most pin a result the slides quote, from the
+reference run: if one fails after you change something, a slide no longer
+matches the code.
 
-In the toolkit environment six more run the real DeepEval and Ragas metrics
+| File | Tests | What they hold |
+| --- | ---: | --- |
+| `test_day1_fixture.py` | 14 | the six Day 1 failures and the configuration hash |
+| `test_live_path.py` | 23 | a small fake model server on your machine, speaking Ollama's API and the OpenAI-compatible one: streaming, tool calling in both formats, embeddings, JSON for judges, a local answer model with a cloud judge, citation and refusal detection on paraphrased answers, the agent's switches, judge parsing, the error messages |
+| `test_day2.py` | 40 | synthetic tuples, the sheets and what they never delete, terminal annotation, Cohen's and Fleiss' kappa on worked examples, every Day 2 figure, the split, round 2, saturation, the whole reference run from a clean copy |
+| `test_evaluators.py` | 10 | the binary judge with a scripted model, our G-Eval code, the corrected failure rate and its interval, the safety settings |
+| `test_day3.py` | 24 | every retrieval figure, the ingestion check, the citation check, the generation checks, the checkers against annotator A, the Day 3 sheet (also saved from Excel), conversations with N-1 and single-turn tests, pass^k, robustness per family, the planted page, and every Day 3 command from a clean copy |
+| `test_architectures.py` | 21 | the Day 3 matrix and the code each switch produces |
+| `test_day3_agents.py` | 23 | the heatmap before and after the switches, each planted defect in its own cell, faults and retries, scope checks and their controls, the injection patterns, the red-team table, and a citation written after the full stop |
+| `test_day4.py` | 21 | the suite and its fingerprint, both Module 10 arms and the gate's decision, acceptances by name and their expiry, every Module 11 statistic, the planted prompt-hash gap, every Module 12 intervention and combination, the simulated month, and every Day 4 command from a clean copy |
+| `test_day3_lens.py` | 7 | the Day 3 curriculum map (every item has an instrument, every empty toolkit column a reason), the contextual-precision arithmetic both toolkits use, q1's three ranking lists, and which toolkit metric each lens step asks for, on which test case |
+
+In the toolkit environment ten more run the real DeepEval and Ragas metrics
 through the workshop's judge, with a scripted model that answers in each
 toolkit's JSON shape and a guard that fails the test if anything opens a
 network connection, and one fails if either toolkit writes a single file.
@@ -515,6 +612,12 @@ Elsewhere they are skipped.
 - Robertson and Zaragoza, [The Probabilistic Relevance Framework: BM25 and Beyond](https://doi.org/10.1561/1500000019), 2009
 - Cormack, Clarke and Buettcher, [Reciprocal Rank Fusion](https://doi.org/10.1145/1571941.1572114), SIGIR 2009
 - Liu et al., [G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment](https://arxiv.org/abs/2303.16634), EMNLP 2023
+- N. F. Liu et al., [Lost in the Middle: How Language Models Use Long Contexts](https://aclanthology.org/2024.tacl-1.9/), TACL 2024
+- Upadhyay et al., [UMBRELA: UMbrela is the (Open-Source Reproduction of the) Bing RELevance Assessor](https://arxiv.org/abs/2406.06519), 2024
+- Pradeep et al., [Initial Nugget Evaluation Results for the TREC 2024 RAG Track with the AutoNuggetizer Framework](https://arxiv.org/abs/2411.09607), 2024
+- Raina, Liusie and Gales, [Is LLM-as-a-Judge Robust? Investigating Universal Adversarial Attacks on Zero-shot LLM Assessment](https://aclanthology.org/2024.emnlp-main.427), EMNLP 2024
+- Zhao et al., [One Token to Fool LLM-as-a-Judge](https://arxiv.org/abs/2507.08794), 2025
+- Ye et al., [Justice or Prejudice? Quantifying Biases in LLM-as-a-Judge](https://proceedings.iclr.cc/paper_files/paper/2025/hash/fdca08d371e4b6c031397909e20043bd-Abstract-Conference.html), ICLR 2025
 - Es et al., [Ragas: Automated Evaluation of Retrieval Augmented Generation](https://arxiv.org/abs/2309.15217), EACL 2024
 - DeepEval, [G-Eval](https://www.deepeval.com/docs/metrics-llm-evals) and [data privacy](https://deepeval.com/docs/data-privacy)
 - Ragas on PyPI, [ragas 0.4.3](https://pypi.org/project/ragas/); the advisory [CVE-2026-6587](https://advisories.gitlab.com/pypi/ragas/CVE-2026-6587/)

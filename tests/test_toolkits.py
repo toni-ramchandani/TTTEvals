@@ -115,7 +115,7 @@ def test_every_deepeval_metric_runs_on_the_workshop_judge(scripted, cases):
     judge = J.deepeval_judge(LIVE, stats)
     tc = to_deepeval(cases["q1"])
     metrics = [D.scope_geval(judge, "criteria", ["step one", "step two"]), D.scope_dag(judge),
-               *D.rag_metrics(judge).values()]
+               *D.rag_metrics(judge).values(), *(D.geval_metric(judge, n) for n in D.GEVAL)]
     for m in metrics:
         r = D.run(m, tc)
         assert r.score is not None, f"{r.metric}: {r.reason}"
@@ -123,7 +123,10 @@ def test_every_deepeval_metric_runs_on_the_workshop_judge(scripted, cases):
                     expected_tools=["get_user_profile", "search_handbook"])
     tools = D.run(D.agent_metrics(judge)["tool_correctness"], to_deepeval(agent))
     assert tools.score == pytest.approx(0.5), "one of the two expected tools, by name"
+    ordered = D.run(D.agent_metrics(judge)["tool_correctness_ordered"], to_deepeval(agent))
+    assert ordered.score == pytest.approx(0.5), "a subsequence of length one, of two expected"
     assert D.run(D.agent_metrics(judge)["task_completion"], to_deepeval(agent)).score is not None
+    assert D.run(D.agent_metrics(judge)["argument_correctness"], to_deepeval(agent)).score is not None
     assert stats.calls == len(log) and stats.failed == 0
     assert all(entry["model"] == LIVE.generation_model for entry in log), "the judge is the workshop's model"
 
@@ -160,10 +163,16 @@ def test_every_ragas_metric_runs_on_the_workshop_judge(scripted, cases):
     assert set(built) == set(R.METRICS)
     agent = replace(cases["q1"], tools_called=[{"name": "search_handbook", "args": {"query": "leave"}}],
                     expected_tools=["get_user_profile", "search_handbook"])
+    on_agent = ("tool_call_f1", "tool_call_accuracy", "goal_accuracy")
     for name, metric in built.items():
-        r = R.score(name, metric, agent if name == "tool_call_f1" else cases["q1"])
+        r = R.score(name, metric, agent if name in on_agent else cases["q1"])
         assert r.score is not None, f"{name}: {r.reason}"
     assert R.score("tool_call_f1", built["tool_call_f1"], agent).score == pytest.approx(0.6667)
+    # One call where the reference has two, in another order: the sequence does not align
+    assert R.score("tool_call_accuracy", built["tool_call_accuracy"], agent).score == 0.0
+    in_order = replace(agent, tools_called=[{"name": "get_user_profile", "args": {}},
+                                            {"name": "search_handbook", "args": {"query": "leave"}}])
+    assert R.score("tool_call_accuracy", built["tool_call_accuracy"], in_order).score == 1.0
     assert stats.failed == 0
 
 
@@ -199,3 +208,93 @@ def test_the_toolkits_write_nothing_to_disk(scripted, cases, tmp_path, monkeypat
     logging.getLogger("ragas").warning("a Ragas log line, which reads a user id")
     written = [str(p) for p in tmp_path.rglob("*") if p.is_file()]
     assert written == [], f"a toolkit wrote to disk: {written}"
+
+
+# ---------------------------------------------------------------------------
+# Day 3: conversations, noise, and the open box
+# ---------------------------------------------------------------------------
+def test_conversation_metrics_run_on_the_workshop_judge(scripted):
+    from evals.day3_conversations import load_sessions
+    from helix import REPAIRED
+    from helix.conversation import run as converse
+    from toolkits.cases import to_deepeval_conversation, to_ragas_conversation
+
+    s = next(x for x in load_sessions() if x["id"] == "c5")
+    traces = converse([t["text"] for t in s["turns"]], build_index(REPAIRED), REPAIRED, "condense",
+                      s["user_office"], s["user_role"], "c5")
+    stats = J.JudgeStats()
+    tc = to_deepeval_conversation(traces, s)
+    assert len(tc.turns) == 2 * len(traces) and tc.turns[1].retrieval_context
+    for name, metric in D.conversation_metrics(J.deepeval_judge(LIVE, stats)).items():
+        r = D.run(metric, tc)
+        assert r.score is not None, f"{name}: {r.reason}"
+    built = R.build_conversation(J.ragas_llm(LIVE, stats))
+    r = R.score_conversation("goal_accuracy", built["goal_accuracy"], to_ragas_conversation(traces))
+    assert r.score is not None, r.reason
+    assert stats.failed == 0
+
+
+def test_noise_sensitivity_runs_on_the_workshop_judge(scripted):
+    stats = J.JudgeStats()
+    m = R.score_noise(R.build_noise(J.ragas_llm(LIVE, stats)), "How many days of annual leave?",
+                      "25 days.", "25 days of paid annual leave", ["Staff cafeteria opens at 08:00.",
+                                                                   "25 days of paid annual leave."])
+    assert m.score is not None, m.reason
+    assert stats.failed == 0
+
+
+def test_show_opens_the_box_on_one_trace(scripted, cases, tmp_path, monkeypatch, capsys):
+    import importlib.util
+
+    from tracing import write_jsonl
+
+    index = build_index(DEFAULT)
+    traces = [answer(q["text"], index, DEFAULT, user_office=q["user_office"], user_role=q["user_role"])
+              for q in SUITE]
+    path = tmp_path / "day1.jsonl"
+    write_jsonl(traces, path)
+    spec = importlib.util.spec_from_file_location("toolkits_script", ROOT / "scripts" / "toolkits.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "TRACES", path)
+    monkeypatch.setattr(mod, "DEFAULT", LIVE)
+    assert mod.show("q1") == 0
+    out = capsys.readouterr().out
+    assert "STEP 2  DeepEval faithfulness" in out and "claims (from the answer)" in out
+    assert "STEP 3  Ragas faithfulness" in out and "statements:" in out and "verdicts:" in out
+
+
+def test_the_day3_lens_runs_every_toolkit_metric_on_the_workshop_judge(scripted, tmp_path, monkeypatch, capsys):
+    """`toolkits --module 07|08|09` against the real libraries, judged by the script."""
+    import scripts.lens as lens
+    from toolkits.kits import Kits
+    from tracing import write_jsonl
+
+    index = build_index(DEFAULT)
+    traces = [answer(q["text"], index, DEFAULT, user_office=q["user_office"], user_role=q["user_role"])
+              for q in SUITE]
+    path = tmp_path / "day1.jsonl"
+    write_jsonl(traces, path)
+    monkeypatch.setattr(lens, "TRACES", path)
+    monkeypatch.setattr(lens, "DEFAULT", LIVE)
+    kits = Kits(LIVE)
+    lens.module_07(["q1"], kits)
+    lens.module_08(["q1"], kits)
+    lens.module_09(list(lens.PARTS), kits)
+    out = capsys.readouterr().out
+    retrieved = next(ln for ln in out.splitlines() if ln.strip().startswith("retrieved "))
+    assert "-" not in retrieved.split()[3:], f"a contextual metric did not score: {retrieved}"
+    row = next(ln for ln in out.splitlines() if ln.strip().startswith("correctness "))
+    assert row.split()[-2:] != ["-", "-"], f"G-Eval or Ragas correctness did not score: {row}"
+    agents = next(ln for ln in out.splitlines() if ln.strip().startswith("a2 empty result"))
+    assert agents.split()[-7:].count("-") == 0, f"an agent metric did not score: {agents}"
+    # The rule-based tool metrics need no judge, so their values are fixed. The run that
+    # failed (an empty search result) called exactly the expected tools in order: every
+    # tool-name score is perfect. The right run called more tools: DeepEval's order (a
+    # subsequence) still passes it, Ragas's exact order gives 0.
+    tools, order, _, _, f1, exact, _ = agents.split()[-7:]
+    assert (tools, order, f1, exact) == ("1.00", "1.00", "1.00", "1.00")
+    right = next(ln for ln in out.splitlines() if ln.strip().startswith("a2 no fault")).split()[-7:]
+    assert (right[0], right[1], right[4], right[5]) == ("1.00", "1.00", "0.80", "0.00")
+    assert kits.geval_steps("correctness"), "G-Eval wrote its steps once and kept them"
+    assert kits.stats.failed == 0

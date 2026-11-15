@@ -65,8 +65,16 @@ def render_context(chunks: list[Chunk]) -> str:
     return "\n\n".join(blocks) if blocks else "(no extracts retrieved)"
 
 
-def build_messages(question: str, chunks: list[Chunk]) -> list[dict[str, str]]:
+def build_messages(question: str, chunks: list[Chunk],
+                   history: list[dict[str, str]] | None = None) -> list[dict[str, str]]:
+    """System prompt, the conversation so far (if any), then context and question.
+
+    Earlier turns go in as plain user and assistant messages. Only the last
+    message carries retrieved context: the context of earlier turns is not
+    replayed, which is one reason a follow-up can lose its referent (MT1).
+    """
     return [
         {"role": "system", "content": SYSTEM.format(refusal=REFUSAL)},
+        *(history or []),
         {"role": "user", "content": USER.format(context=render_context(chunks), question=question)},
     ]

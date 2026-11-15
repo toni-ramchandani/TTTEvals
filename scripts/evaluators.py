@@ -129,7 +129,10 @@ def human_truth(items: list[Item]) -> tuple[dict[str, Truth], str]:
             for q, r in notes.items() if (r.get("acceptable") or "").strip()}
     if mine:
         return mine, "your sheet (no golden set yet, so no train, dev or test split)"
-    ex = {q: Truth(ok, set(labs), "", note) for q, (ok, note, labs) in EXAMPLES["A"].items() if q in current}
+    if not DEFAULT.offline:
+        # Live answers are never measured against labels written for other answers.
+        return {}, "none yet"
+    ex ={q: Truth(ok, set(labs), "", note) for q, (ok, note, labs) in EXAMPLES["A"].items() if q in current}
     note = "" if DEFAULT.offline else "; they describe the reference answers, not your live ones"
     return ex, f"the example labels of annotator A (no golden set yet{note})"
 
@@ -157,6 +160,14 @@ def main(argv: list[str] | None = None) -> int:
     items = load_items()
     cases = cases_from_traces([it.trace for it in items], [it.suite for it in items])
     truth, source = human_truth(items)
+    if not truth:
+        print("\nNo human labels on these answers yet, so no evaluator can be measured.")
+        print("Label first, then come back:")
+        print("  python run.py day2 --annotate                    your sheet")
+        print("  python run.py day2 --annotate --annotator NAME   a partner's sheet")
+        print("  python run.py agreement                          the golden set from both")
+        print("To see the method on the reference run instead:  python run.py evaluators --offline")
+        return 0
     has_splits = any(t.split for t in truth.values())
     train_q = {q for q, t in truth.items() if t.split == "train"}
     if has_splits and args.split != "all":

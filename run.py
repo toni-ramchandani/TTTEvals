@@ -9,7 +9,15 @@
     python run.py day3            retrieval metrics, grounded x correct, judge validation
     python run.py metrics         Day 3: our metrics beside Ragas and DeepEval, same traces
     python run.py architectures   vanilla vs agentic vs GraphRAG, with ablations
-    python run.py day4            paired before/after comparison and the release gate
+    python run.py conversations   Day 3: conversations judged per session, then per turn
+    python run.py robustness      Day 3: paraphrase, noise, refusal and prompt-injection tests
+    python run.py chunking        Day 3: chunk size, overlap and headings, each scored on retrieval
+    python run.py agents          Day 3: the agent's path per tool call, heatmap, faults, scope
+    python run.py redteam         Day 3: attacks on the evaluators, false passes per attack
+    python run.py day4            Day 4: the regression suite and the release gate
+    python run.py production      Day 4: a simulated month of traffic: online checks, feedback, review
+    python run.py compare         Day 4: intervals, a paired test and the decision record
+    python run.py capstone        Day 4: localize, intervene, rerun, inspect, decide
     python run.py ci              Day 4: the release gate as tests, run by DeepEval
     python run.py toolkits        check the DeepEval and Ragas environment
     python run.py ask "question"  ask the three systems one question and read the traces
@@ -49,13 +57,22 @@ COMMANDS = {
     "day3": ("scripts.day3", "retrieval metrics, grounded x correct, judge validation"),
     "metrics": ("scripts.metrics", "Day 3: our metrics beside Ragas and DeepEval, same traces"),
     "architectures": ("scripts.architectures", "vanilla vs agentic vs GraphRAG, with ablations"),
-    "day4": ("scripts.day4", "paired before/after comparison and the release gate"),
+    "day4": ("scripts.day4", "Day 4: the regression suite and the release gate"),
+    "conversations": ("scripts.conversations", "Day 3: conversations judged per session, then per turn"),
+    "robustness": ("scripts.robustness", "Day 3: paraphrase, noise, refusal and prompt-injection tests"),
+    "chunking": ("scripts.chunking", "Day 3: chunk size, overlap and headings, each scored on retrieval"),
+    "agents": ("scripts.agents", "Day 3: the agent's path per tool call, heatmap, faults, scope"),
+    "redteam": ("scripts.redteam", "Day 3: attacks on the evaluators, false passes per attack"),
     "ci": ("scripts.ci", "Day 4: the release gate as tests, run by DeepEval"),
+    "production": ("scripts.production", "Day 4: a simulated month of traffic: online checks, feedback, review"),
+    "compare": ("scripts.compare", "Day 4: intervals, a paired test and the decision record"),
+    "capstone": ("scripts.capstone", "Day 4: localize, intervene, rerun, inspect, decide"),
     "toolkits": ("scripts.toolkits", "check the DeepEval and Ragas environment"),
     "ask": ("scripts.ask", "ask the three systems one question and read the traces"),
     "verify": ("scripts.verify_fixture", "assert the Day 1 seeded failures still reproduce"),
 }
-ALL = ["day1", "day2", "agreement", "evaluators", "day3", "architectures", "metrics", "day4"]
+ALL = ["day1", "day2", "agreement", "evaluators", "day3", "chunking", "architectures", "agents", "metrics",
+       "conversations", "robustness", "redteam", "day4", "production", "compare", "capstone"]
 
 
 #: Options any command accepts. Each one becomes an environment variable, set
@@ -153,7 +170,7 @@ def main(argv: list[str]) -> int:
         # Traces and derived tables are made again by the next run. Sheets hold
         # what people wrote (triage, verdicts, notes, labels, the golden set)
         # and are kept unless you ask: `python run.py clean --all`.
-        human = ("day1_triage_worksheet.csv", "day2_sheet*.csv", "day2_golden*.csv")
+        human = ("day1_triage_worksheet.csv", "day2_sheet*.csv", "day2_golden*.csv", "day3_sheet*.csv")
         patterns = ["data/traces/*.jsonl", "data/annotations/*.csv", "data/queries/day2_synthetic*.json"]
         removed, kept = 0, []
         for pattern in patterns:

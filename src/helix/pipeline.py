@@ -7,6 +7,8 @@ sets is where most RAG failures are born.
 
 from __future__ import annotations
 
+import re
+
 from .config import Config
 from .ingest import Index, build_index
 from .llm import complete, count_tokens, is_refusal
@@ -23,10 +25,23 @@ def answer(
     user_office: str = "amsterdam",
     user_role: str = "employee",
     on_token=None,
+    history: list[dict[str, str]] | None = None,
+    standalone: str | None = None,
+    extra_context: list[Chunk] | None = None,
 ) -> Trace:
     """Answer one question and return its full trace.
 
     `on_token`, if given, receives the answer text as the model streams it.
+
+    Day 3 adds three optional inputs, all recorded in the trace:
+
+    * `history`: the earlier turns of a conversation, as chat messages. The
+      model sees them before the question (see `helix.conversation`).
+    * `standalone`: the question retrieval should use instead of the raw
+      message, when a conversation rewrote a follow-up into a standalone
+      question in `query.transform`.
+    * `extra_context`: chunks placed in front of the retrieved ones, which is
+      how the robustness tests add an irrelevant chunk (`evals.day3_robustness`).
     """
     trace = Trace(
         query=question,
@@ -39,8 +54,10 @@ def answer(
     with span(trace, "query.transform", original=question) as s:
         # A real system infers filters from user attributes here. Helix does
         # not, which is itself worth noticing: the office is known and unused.
-        rewritten = question.strip()
+        rewritten = (standalone or question).strip()
         s.attributes["rewritten"] = rewritten
+        if history is not None:
+            s.attributes["history_turns"] = sum(1 for m in history if m.get("role") == "user")
         s.attributes["inferred_filters"] = {}
         s.attributes["user_office_available_but_unused"] = user_office
 
@@ -101,12 +118,16 @@ def answer(
         for c in truncated:
             c.dropped_at = "context.assemble"
         trace.considered.extend(truncated)
+        if extra_context:
+            # Placed first, as a noisy retriever would place a confident miss.
+            assembled = [*extra_context, *assembled]
+            s.attributes["injected"] = [c.chunk_id for c in extra_context]
 
     trace.retrieved = assembled
     trace.considered.extend(assembled)
 
     # 5. generate ------------------------------------------------------------
-    messages = build_messages(rewritten, assembled)
+    messages = build_messages(question.strip(), assembled, history=history)
     with span(
         trace,
         "generate",
@@ -127,7 +148,8 @@ def answer(
         refused = is_refusal(text)
         s.attributes["citations_emitted"] = citations
         s.attributes["refused"] = refused
-        s.attributes["citations_checked"] = False  # Day 3 turns this on
+        s.attributes["citation_problems"] = check_citations(text, assembled, user_role)
+        s.attributes["citations_checked"] = True
 
     trace.answer = text
     trace.citations = citations
@@ -136,6 +158,39 @@ def answer(
 
     trace.ended_at = _now()
     return trace
+
+
+_CITED_ID = re.compile(r"\[([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d{2})\b")
+
+
+def check_citations(text: str, context: list[Chunk], user_role: str) -> list[str]:
+    """Source-to-answer lineage, checked: what is wrong with the answer's citations.
+
+    A citation should point to a chunk that was in the context, from a page
+    that is current, that this asker may read. An empty list means no
+    problem was found (or nothing was cited, which `refused` and Day 2's
+    checks deal with).
+    """
+    from .ingest import document_status
+    from .retrieve import ENTITLEMENTS
+
+    status = document_status()
+    allowed = ENTITLEMENTS.get(user_role, {"all"})
+    in_context = {c.chunk_id: c for c in context}
+    problems = []
+    for cid in dict.fromkeys(_CITED_ID.findall(text or "")):
+        c = in_context.get(cid)
+        if c is None:
+            problems.append(f"{cid} was not in the context")
+            continue
+        st = status.get(c.doc_id)
+        if st is None:
+            problems.append(f"{cid} is from {c.doc_id}, which is not a handbook page")
+        elif st["status"] == "superseded":
+            problems.append(f"{cid} is from {c.doc_id}, superseded by {st['superseded_by']}")
+        if c.access_label not in allowed:
+            problems.append(f"{cid} is {c.access_label}, not permitted for {user_role}")
+    return problems
 
 
 def build(cfg: Config) -> Index:

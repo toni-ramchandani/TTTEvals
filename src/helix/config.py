@@ -65,7 +65,7 @@ class Config:
     # "provider/model". Ollama on your laptop: "ollama/llama3.1:8b".
     # A cloud model: "openai/gpt-5.4-mini", "gemini/gemini-3.6-flash", "anthropic/claude-haiku-5-5".
     generation_model: str = field(
-        default_factory=lambda: os.getenv("HELIX_GENERATION_MODEL", "ollama/llama3.1:8b")
+        default_factory=lambda: os.getenv("HELIX_GENERATION_MODEL", "ollama/gemma4:latest")
     )
     # "hash" = the built-in deterministic embedding, no model needed.
     embedding_model: str = field(

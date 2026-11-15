@@ -135,6 +135,17 @@ def _structural_chunks(doc: Document, cfg: Config) -> list[tuple[str, str]]:
 
 
 def build_index(cfg: Config, handbook: Path = HANDBOOK) -> "Index":
+    chunks = chunk_corpus(cfg, handbook)
+    vectors = embed([c.text for c in chunks], cfg)
+    return Index(chunks=chunks, vectors=vectors, config_hash=cfg.hash())
+
+
+def chunk_corpus(cfg: Config, handbook: Path = HANDBOOK) -> list[Chunk]:
+    """Every chunk the index holds under these settings, with no embedding.
+
+    Day 3 reads this to judge relevance over the whole corpus: recall needs
+    every relevant chunk, including the ones retrieval never returned.
+    """
     docs = [parse(p) for p in sorted(handbook.glob("*.md"))]
     chunks: list[Chunk] = []
     for doc in docs:
@@ -155,8 +166,7 @@ def build_index(cfg: Config, handbook: Path = HANDBOOK) -> "Index":
                     access_label=doc.access_label,
                 )
             )
-    vectors = embed([c.text for c in chunks], cfg)
-    return Index(chunks=chunks, vectors=vectors, config_hash=cfg.hash())
+    return chunks
 
 
 @dataclass

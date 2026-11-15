@@ -133,11 +133,24 @@ def read_sheet_all(path: Path) -> list[dict]:
     return _rows(path)
 
 
-def _rows(path: Path) -> list[dict]:
+def read_rows(path: Path) -> list[dict]:
+    """The rows of a sheet a person edited, as dicts.
+
+    Spreadsheet programs change a CSV when they save it: Excel's "CSV UTF-8"
+    puts a byte-order mark before the first column name, and in many European
+    locales it separates columns with semicolons. Both are read here, so a
+    sheet saved from Excel still counts.
+    """
     if not path.exists():
         return []
-    with path.open(encoding="utf-8", newline="") as fh:
-        return list(csv.DictReader(fh))
+    with path.open(encoding="utf-8-sig", newline="") as fh:
+        text = fh.read()
+    header = text.split("\n", 1)[0]
+    delimiter = max([",", ";", "\t"], key=header.count)
+    return list(csv.DictReader(text.splitlines(), delimiter=delimiter))
+
+
+_rows = read_rows
 
 
 def read_sheet(path: Path = SHEET) -> dict[str, dict]:

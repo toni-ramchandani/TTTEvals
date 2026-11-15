@@ -1,0 +1,5 @@
+{
+  "note": "What your team changes in the Day 4 regression suite, by hand. 'cases': questions added after reviewing production traffic, each with a pass condition a person wrote (id, text, user_office, user_role, should_refuse, must_include, must_not_include, must_cite_doc, found_by). 'accepted': regressions a named person accepted, each with id, accepted_by, reason and review_by. No script writes this file. As shipped both lists are empty, so the reference run's numbers hold.",
+  "cases": [],
+  "accepted": []
+}

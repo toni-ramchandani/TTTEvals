@@ -17,6 +17,15 @@ their arguments; its failures come from the same place.
 ``finish``                 end the loop with an answer and its citations.
 =========================  ===================================================
 
+A tool can also fail. ``faults`` plants a failure on chosen calls, so the
+agent's retries, recovery and fallback can be tested on demand (Day 3,
+``python run.py agents``). Two kinds, the two the field sees most:
+
+* ``timeout``: the call raises ``ToolError``, as a search backend or a
+  network hop does when it is slow. A retry policy can see this one.
+* ``empty``: the call returns nothing and raises nothing, the silent
+  failure. No retry policy sees it; only a check on the output does.
+
 ``TOOL_SPECS`` is the same set in the JSON-schema form a model's tool-calling
 API expects. The live agent loop sends it, minus whatever the switches take
 away (see ``agent.live_tools``); the reference-run planner calls the Python
@@ -34,22 +43,48 @@ from helix.retrieve import rerank, retrieve
 from helix.structure import OFFICES, offices_in
 from tracing.schema import Chunk
 
+FAULT_KINDS = ("timeout", "empty")
+
+
+class ToolError(Exception):
+    """A tool call that failed and said so."""
+
 
 class Toolbox:
-    def __init__(self, index: Index, cfg: Config, profile: dict[str, Any]) -> None:
+    def __init__(self, index: Index, cfg: Config, profile: dict[str, Any],
+                 faults: dict[str, tuple[str, set[int] | None]] | None = None) -> None:
+        """`faults` maps a tool name to (kind, call numbers), for example
+        {"search_handbook": ("timeout", {1})} fails the first search only.
+        Call numbers None means every call fails: an outage."""
         self.index = index
         self.cfg = cfg
         self.profile = dict(profile)
         self._status: dict[str, dict[str, Any]] = document_status(HANDBOOK)
+        self.faults = dict(faults or {})
+        self.calls: dict[str, int] = {}
         #: Every chunk any tool has returned, keyed by id, so the trace can
         #: record the full set the agent saw.
         self.seen: dict[str, Chunk] = {}
 
+    def _fault(self, tool: str) -> str | None:
+        """Count this call; return the planted fault for it, if any."""
+        n = self.calls[tool] = self.calls.get(tool, 0) + 1
+        kind, which = self.faults.get(tool, (None, set()))
+        if kind and (which is None or n in which):
+            if kind == "timeout":
+                raise ToolError(f"{tool} timed out (planted fault, call {n})")
+            return kind
+        return None
+
     # -- tools --------------------------------------------------------------
     def get_user_profile(self) -> dict[str, Any]:
+        if self._fault("get_user_profile") == "empty":
+            return {}
         return dict(self.profile)
 
     def list_offices(self) -> list[str]:
+        if self._fault("list_offices") == "empty":
+            return []
         return list(OFFICES)
 
     def search_handbook(self, query: str, office: str | None = None) -> tuple[list[Chunk], list[Chunk]]:
@@ -60,6 +95,8 @@ class Toolbox:
         no office (company-wide pages) are kept, which is correct, and is also
         how a superseded company-wide page gets back in.
         """
+        if self._fault("search_handbook") == "empty":
+            return [], []
         q = query
         wide = replace(self.cfg, top_k=max(self.cfg.top_k, 8))
         cands, blocked = retrieve(self.index, q, wide, user_role=self.profile.get("role", "employee"))
@@ -79,6 +116,8 @@ class Toolbox:
         return ranked, filtered + demoted + blocked
 
     def check_document_status(self, doc_id: str) -> dict[str, Any]:
+        if self._fault("check_document_status") == "empty":
+            return {}
         return dict(self._status.get(doc_id, {"doc_id": doc_id, "status": "unknown"}))
 
 

@@ -10,7 +10,17 @@
       "expected_failure": "FP10",
       "ground_truth": "130 working days / 26 weeks, primary caregiver, Amsterdam office (HB-PAR-2024 v4)",
       "should_refuse": false,
-      "expected_evidence": "Primary caregiver | 26 | 130"
+      "expected_evidence": "Primary caregiver | 26 | 130",
+      "nuggets": [
+        [
+          "26 weeks",
+          "26"
+        ],
+        [
+          "130 working days",
+          "130"
+        ]
+      ]
     },
     {
       "id": "q2",
@@ -20,7 +30,18 @@
       "expected_failure": "FP8",
       "ground_truth": "Depends on the contracting office. HB-PAR-2024 v4 supersedes the global 12-week figure in HB-PAR-2022.",
       "should_refuse": false,
-      "expected_evidence": "Entitlement differs by country office"
+      "expected_evidence": "Entitlement differs by country office",
+      "nuggets": [
+        [
+          "differs by country office",
+          "differs by office",
+          "differs by",
+          "depends on",
+          "depending on",
+          "varies by",
+          "depend on"
+        ]
+      ]
     },
     {
       "id": "q3",
@@ -30,7 +51,13 @@
       "expected_failure": "FP2/FP3",
       "ground_truth": "6 weeks (Dublin, 2 to 5 years' service, HB-EXIT v3)",
       "should_refuse": false,
-      "expected_evidence": "Dublin | 4 weeks | 6 weeks"
+      "expected_evidence": "Dublin | 4 weeks | 6 weeks",
+      "nuggets": [
+        [
+          "6 weeks",
+          "six weeks"
+        ]
+      ]
     },
     {
       "id": "q4",
@@ -40,7 +67,8 @@
       "expected_failure": "FP11",
       "ground_truth": "The employee is not entitled to see HB-COMP-BANDS. Correct behaviour is to refuse and route to HR.",
       "should_refuse": true,
-      "expected_evidence": null
+      "expected_evidence": null,
+      "nuggets": "refusal"
     },
     {
       "id": "q5",
@@ -50,7 +78,13 @@
       "expected_failure": null,
       "ground_truth": "25 days plus public holidays (HB-ANNUAL v5)",
       "should_refuse": false,
-      "expected_evidence": "25 days of paid annual leave"
+      "expected_evidence": "25 days of paid annual leave",
+      "nuggets": [
+        [
+          "25 days",
+          "twenty-five days"
+        ]
+      ]
     },
     {
       "id": "q6",
@@ -60,7 +94,16 @@
       "expected_failure": null,
       "ground_truth": "Yes, within the one-off 600 EUR allowance (HB-EXP-HOME v2)",
       "should_refuse": false,
-      "expected_evidence": "home office allowance of 600 EUR"
+      "expected_evidence": "home office allowance of 600 EUR",
+      "nuggets": [
+        [
+          "600 EUR",
+          "600"
+        ],
+        [
+          "laptop stand"
+        ]
+      ]
     }
   ]
 }

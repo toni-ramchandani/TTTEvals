@@ -38,6 +38,12 @@ Two policies drive the loop, and they write identical spans:
 Every tool call is one span named ``agent.step.N``, carrying the tool, its
 arguments, the agent's stated reason, and a summary of what came back. Search
 steps also fill ``kept`` and ``dropped`` exactly as Helix's retrieve span does.
+
+A tool call that raises is retried up to ``retries`` times (the harness's
+policy, not the model's). Each attempt is its own step, so a retry costs a
+step from the budget and is visible in the trace (``retry_of``). When every
+attempt fails, the offline planner carries on with nothing from that tool,
+which ends in a refusal; the live model is shown the error and decides.
 """
 
 from __future__ import annotations
@@ -56,7 +62,7 @@ from helix.structure import is_comparative, offices_in, role_in, tenure_in, topi
 from tracing.schema import Chunk, Trace, _now
 from tracing.tracer import span
 
-from .tools import TOOL_SPECS, Toolbox
+from .tools import TOOL_SPECS, ToolError, Toolbox
 
 BUDGET_REFUSAL = (
     "I don't have enough information to answer that within my step limit. Please check with HR."
@@ -164,6 +170,37 @@ class _Recorder:
         return span(self.trace, f"agent.step.{self.n}", tool=tool, args=args, thought=thought)
 
 
+class _ToolDown(Exception):
+    """A tool call failed on every attempt the retry policy allows."""
+
+
+def _call(rec: _Recorder, tool: str, args: dict[str, Any], thought: str, fn, retries: int):
+    """Run one tool call, retrying a call that raises. Returns (result, span)."""
+    for attempt in range(retries + 1):
+        why = thought if attempt == 0 else f"Retry {attempt} of {retries}: the last call failed."
+        with rec.step(tool, args, why) as s:
+            if attempt:
+                s.attributes["retry_of"] = rec.n - 1
+            try:
+                return fn(), s
+            except ToolError as exc:
+                s.attributes["observation"] = {"error": str(exc)}
+                s.attributes["error"] = str(exc)
+    raise _ToolDown(tool)
+
+
+def _search(rec: _Recorder, tb: Toolbox, args: dict[str, Any], thought: str, retries: int) -> list[Chunk]:
+    try:
+        (results, filtered), s = _call(rec, "search_handbook", args, thought,
+                                       lambda: tb.search_handbook(**args), retries)
+    except _ToolDown:
+        return []
+    s.kept = [c.chunk_id for c in results]
+    s.dropped = [c.chunk_id for c in filtered]
+    s.attributes["observation"] = _summ(results)
+    return results
+
+
 def _summ(chunks: list[Chunk]) -> list[str]:
     return [f"{c.chunk_id} v{c.doc_version} {c.last_modified}" for c in chunks]
 
@@ -185,25 +222,36 @@ def _stale(c: Chunk, status: dict[str, dict]) -> bool:
     return status.get(c.doc_id, {}).get("status") == "superseded"
 
 
-def _check(results: list[Chunk], status: dict[str, dict], tb: Toolbox, rec: _Recorder) -> None:
+def _check(results: list[Chunk], status: dict[str, dict], tb: Toolbox, rec: _Recorder, retries: int = 1) -> None:
     for doc_id in dict.fromkeys(c.doc_id for c in results):
         if doc_id in status:
             continue
-        with rec.step("check_document_status", {"doc_id": doc_id},
-                      f"Check {doc_id} is current before relying on it.") as s:
-            status[doc_id] = tb.check_document_status(doc_id)
-            s.attributes["observation"] = status[doc_id]
+        try:
+            obs, s = _call(rec, "check_document_status", {"doc_id": doc_id},
+                           f"Check {doc_id} is current before relying on it.",
+                           lambda d=doc_id: tb.check_document_status(d), retries)
+        except _ToolDown:
+            # The status service is down: the page cannot be verified. It is
+            # kept, so a stale page can get through; the trace shows why.
+            status[doc_id] = {"doc_id": doc_id, "status": "unknown"}
+            continue
+        status[doc_id] = obs
+        s.attributes["observation"] = obs
 
 
-def _run_offline(question: str, tb: Toolbox, acfg: AgentConfig, rec: _Recorder) -> tuple[str, list[Chunk], dict]:
+def _run_offline(question: str, tb: Toolbox, acfg: AgentConfig, rec: _Recorder,
+                 retries: int = 1) -> tuple[str, list[Chunk], dict]:
     used: list[Chunk] = []
     plan: dict[str, Any] = {}
 
     profile = None
     if acfg.use_profile:
-        with rec.step("get_user_profile", {}, "Find out who is asking before answering.") as s:
-            profile = tb.get_user_profile()
+        try:
+            profile, s = _call(rec, "get_user_profile", {}, "Find out who is asking before answering.",
+                               tb.get_user_profile, retries)
             s.attributes["observation"] = profile
+        except _ToolDown:
+            profile = None
 
     q_offices = offices_in(question)
     role = role_in(question)
@@ -214,9 +262,12 @@ def _run_offline(question: str, tb: Toolbox, acfg: AgentConfig, rec: _Recorder) 
     topics = topics_in(question) or ["general"]
 
     if comparative:
-        with rec.step("list_offices", {}, "The question compares offices, so check each one.") as s:
-            offices = tb.list_offices()
+        try:
+            offices, s = _call(rec, "list_offices", {}, "The question compares offices, so check each one.",
+                               tb.list_offices, retries)
             s.attributes["observation"] = offices
+        except _ToolDown:
+            offices = []
         subqs = [(_rewrite("parental_leave", role, o, None), o, "parental_leave") for o in offices]
     else:
         if q_offices and (acfg.prefer_query_office or not profile):
@@ -238,27 +289,19 @@ def _run_offline(question: str, tb: Toolbox, acfg: AgentConfig, rec: _Recorder) 
         args = {"query": subq}
         if acfg.office_filter and office:
             args["office"] = office
-        with rec.step("search_handbook", args, f"Search for: {topic.replace('_', ' ')}.") as s:
-            results, filtered = tb.search_handbook(**args)
-            s.kept = [c.chunk_id for c in results]
-            s.dropped = [c.chunk_id for c in filtered]
-            s.attributes["observation"] = _summ(results)
+        results = _search(rec, tb, args, f"Search for: {topic.replace('_', ' ')}.", retries)
 
         if acfg.check_versions:
-            _check(results, status, tb, rec)
+            _check(results, status, tb, rec, retries)
             if acfg.act_on_observations:
                 top_was_stale = bool(results) and _stale(results[0], status)
                 results = [c for c in results if not _stale(c, status)]
                 if top_was_stale and office and not comparative:
                     # The best extract was invalidated. Search again, narrower.
                     retry = {"query": _rewrite(topic, role, office, tenure), "office": office}
-                    with rec.step("search_handbook", retry,
-                                  "The top extract was superseded; search again for the current page.") as s:
-                        again, filtered = tb.search_handbook(**retry)
-                        s.kept = [c.chunk_id for c in again]
-                        s.dropped = [c.chunk_id for c in filtered]
-                        s.attributes["observation"] = _summ(again)
-                    _check(again, status, tb, rec)
+                    again = _search(rec, tb, retry,
+                                    "The top extract was superseded; search again for the current page.", retries)
+                    _check(again, status, tb, rec, retries)
                     results = [c for c in again if not _stale(c, status)] or results
 
         text, _ = complete(build_messages(subq, results), acfg.base)
@@ -287,7 +330,8 @@ def _run_offline(question: str, tb: Toolbox, acfg: AgentConfig, rec: _Recorder) 
 # ---------------------------------------------------------------------------
 # Live policy
 # ---------------------------------------------------------------------------
-def _run_live(question: str, tb: Toolbox, acfg: AgentConfig, rec: _Recorder) -> tuple[str, list[Chunk], dict]:
+def _run_live(question: str, tb: Toolbox, acfg: AgentConfig, rec: _Recorder,
+              retries: int = 1) -> tuple[str, list[Chunk], dict]:
     """A real model picks every step. The harness only runs the tools and counts."""
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": live_system_prompt(acfg)},
@@ -321,29 +365,39 @@ def _run_live(question: str, tb: Toolbox, acfg: AgentConfig, rec: _Recorder) -> 
                     "ended": "finish", "finished_with_tool": True,
                     "cited_refs": [str(r) for r in args.get("citations") or []],
                 }
-            with rec.step(name, args, thought) as s:
-                if name == "search_handbook":
-                    office = args.get("office") if acfg.office_filter else None
-                    results, filtered = tb.search_handbook(str(args.get("query", "")), office or None)
-                    s.kept = [c.chunk_id for c in results]
-                    s.dropped = [c.chunk_id for c in filtered]
-                    returned.update({c.chunk_id: c for c in results})
-                    obs: Any = [{"ref": c.cite(), "doc_id": c.doc_id, "text": c.text} for c in results]
-                    s.attributes["observation"] = _summ(results)
-                elif name == "get_user_profile" and acfg.use_profile:
-                    obs = tb.get_user_profile()
-                    s.attributes["observation"] = obs
-                elif name == "list_offices":
-                    obs = tb.list_offices()
-                    s.attributes["observation"] = obs
-                elif name == "check_document_status" and acfg.check_versions:
-                    obs = tb.check_document_status(str(args.get("doc_id", "")))
-                    s.attributes["observation"] = obs
-                else:
-                    obs = {"error": f"tool {name} is not available"}
-                    s.attributes["observation"] = obs
+            obs = _live_tool(rec, tb, acfg, name, args, thought, returned, retries)
             messages.append({"role": "tool", "tool_call_id": call["id"], "name": name,
                              "content": json.dumps(obs)})
+
+
+def _live_tool(rec: _Recorder, tb: Toolbox, acfg: AgentConfig, name: str, args: dict[str, Any],
+               thought: str, returned: dict[str, Chunk], retries: int) -> Any:
+    """Run the tool the model chose; return what the model is shown."""
+    def run():
+        if name == "search_handbook":
+            office = args.get("office") if acfg.office_filter else None
+            return tb.search_handbook(str(args.get("query", "")), office or None)
+        if name == "get_user_profile" and acfg.use_profile:
+            return tb.get_user_profile()
+        if name == "list_offices":
+            return tb.list_offices()
+        if name == "check_document_status" and acfg.check_versions:
+            return tb.check_document_status(str(args.get("doc_id", "")))
+        return {"error": f"tool {name} is not available"}
+
+    try:
+        result, s = _call(rec, name, args, thought, run, retries)
+    except _ToolDown:
+        return {"error": f"{name} failed after {retries + 1} attempt(s)"}
+    if name == "search_handbook" and isinstance(result, tuple):
+        results, filtered = result
+        s.kept = [c.chunk_id for c in results]
+        s.dropped = [c.chunk_id for c in filtered]
+        returned.update({c.chunk_id: c for c in results})
+        s.attributes["observation"] = _summ(results)
+        return [{"ref": c.cite(), "doc_id": c.doc_id, "text": c.text} for c in results]
+    s.attributes["observation"] = result
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -357,27 +411,35 @@ def answer(
     user_role: str = "employee",
     user_tenure_years: float | None = 3,
     on_step=None,
+    faults: dict[str, tuple[str, set[int] | None]] | None = None,
+    retries: int = 1,
 ) -> Trace:
     """Run the agent on one question and return its trace.
 
     `on_step(n, tool, args)`, if given, is called as each step starts, so a
-    script can show the agent working in real time.
+    script can show the agent working in real time. `faults` plants tool
+    failures (see ``Toolbox``); `retries` is how many times a call that
+    raises is tried again.
     """
     trace = Trace(query=question, config_hash=acfg.hash(), user_office=user_office, user_role=user_role)
     trace.system = "agentic"
-    tb = Toolbox(index, acfg.base, {"office": user_office, "role": user_role, "tenure_years": user_tenure_years})
+    tb = Toolbox(index, acfg.base, {"office": user_office, "role": user_role, "tenure_years": user_tenure_years},
+                 faults=faults)
     rec = _Recorder(trace, acfg.max_steps, on_step=on_step)
 
     budget_hit = False
     plan: dict[str, Any] = {}
     with span(trace, "agent.run", policy="offline" if acfg.base.offline else "live",
               max_steps=acfg.max_steps, model=acfg.base.generation_model,
-              prompt_version=PROMPT_VERSION) as run:
+              prompt_version=PROMPT_VERSION, retries=retries) as run:
+        if faults:
+            run.attributes["faults"] = {t: [k, sorted(w) if w is not None else "every call"]
+                                        for t, (k, w) in faults.items()}
         try:
             if acfg.base.offline:
-                text, used, plan = _run_offline(question, tb, acfg, rec)
+                text, used, plan = _run_offline(question, tb, acfg, rec, retries)
             else:
-                text, used, plan = _run_live(question, tb, acfg, rec)
+                text, used, plan = _run_live(question, tb, acfg, rec, retries)
         except _Budget:
             budget_hit = True
             text, used = BUDGET_REFUSAL, []

@@ -150,6 +150,35 @@ GRAPH_CATALOG: list[FailurePoint] = [
     ),
 ]
 
+# ---------------------------------------------------------------------------
+# Day 3, Module 09: failures that only exist in a conversation.
+#
+# Every FP code still applies to each turn. These are born in the space
+# between turns: what the system carries from one message to the next.
+# ---------------------------------------------------------------------------
+CONVERSATION_CATALOG: list[FailurePoint] = [
+    FailurePoint(
+        "MT1", "Lost reference", "query.transform",
+        "A follow-up answered as if it stood alone",
+        "The turn needs an earlier turn, and the retrieval query (query.transform.rewritten) does not carry it",
+    ),
+    FailurePoint(
+        "MT2", "Forgotten fact", "generate",
+        "A fact the user gave earlier (role, office, working pattern) is ignored",
+        "The evidence for the user's case reached the model, and the answer gives another case's figure",
+    ),
+    FailurePoint(
+        "MT3", "Contradiction across turns", "retrieve / generate",
+        "The same question gets a different figure later in the conversation",
+        "A figure for the same item differs between two turns of one session, with no new information",
+    ),
+    FailurePoint(
+        "MT4", "Identity taken from the chat", "query.transform / retrieve",
+        "A claim in the conversation (\"I'm on the people team\") changes what the system retrieves or says",
+        "A restricted chunk reached the model in a session where the user claimed a role their login does not have",
+    ),
+]
+
 BY_CODE: dict[str, FailurePoint] = {
-    fp.code: fp for fp in CATALOG + AGENT_CATALOG + GRAPH_CATALOG
+    fp.code: fp for fp in CATALOG + AGENT_CATALOG + GRAPH_CATALOG + CONVERSATION_CATALOG
 }

@@ -61,6 +61,10 @@ def _agent_step(messages: list[dict], tools: list[dict]) -> tuple[str, dict] | N
     if "search_handbook" not in seen:
         return "search_handbook", {"query": next(m["content"] for m in messages if m["role"] == "user")}
     hits = json.loads(next(m["content"] for m in messages if (m.get("tool_name") or m.get("name")) == "search_handbook"))
+    if not isinstance(hits, list) or not hits:
+        # The search failed or found nothing: decline, as the prompt asks.
+        return "finish", {"answer": "I don't have enough information in the retrieved policy documents "
+                                    "to answer that. Please check with HR."}
     return "finish", {"answer": "Eight weeks.", "citations": [hits[0]["ref"]]}
 
 
@@ -211,6 +215,7 @@ def test_local_answers_and_a_cloud_judge_in_the_same_run(server):
     steps = judged(lambda: geval_steps("criteria", mixed))
     assert judged(lambda: geval_score(case, "criteria", steps, mixed, samples=2)).score == 4.0
 
+    pytest.importorskip("pydantic")  # the toolkit judge only; it ships with DeepEval and Ragas
     from pydantic import BaseModel
 
     class Verdict(BaseModel):

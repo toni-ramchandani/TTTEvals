@@ -1,0 +1,42 @@
+﻿HB-ANNUAL-00 v5 2026-01-10 access=all 
+    # Annual leave ## Entitlement All permanent employees receive 25 days of paid annual leave per calendar year, in addition to public holidays in their contracting country. Entitlement is pro-rated for part-time employees and for anyone joining mid-year. ## Carry-over Up to 5 days may be carried into the following year and must be taken by 31 March. Days beyond 5 are forfeited and are not paid out. ## Booking Book through the HR portal. Your manager approves or declines within five working days.
+
+HB-COMP-BANDS-00 v7 2026-02-01 access=hr-only 
+    # Compensation bands (restricted) Access to this document is limited to the people team and to managers with budget responsibility. It must not be surfaced to employees. ## Engineering bands, Amsterdam office | Level | Title | Band minimum | Band midpoint | Band maximum | | --- | --- | --- | --- | --- | | E3 | Engineer | 62000 | 72000 | 82000 | | E4 | Senior engineer | 81000 | 95000 | 109000 | | E5 | Staff engineer | 104000 | 122000 | 140000 | Offers are normally made between the band minimum and the midpoint.
+
+HB-EXP-HOME-00 v2 2025-09-12 access=all 
+    # Home office expenses ## Allowance Every employee has a one-off home office allowance of 600 EUR, refreshed every 3 years. It covers a desk, a chair, a monitor, a monitor arm, a laptop stand, a keyboard, a mouse and a desk lamp. ## What is not covered Rent, heating, broadband and furniture that is not a desk or chair are not covered. Items over 300 EUR need manager approval before purchase. ## Claiming Submit the receipt through the expenses portal within 60 days of purchase. Claims are reimbursed with the next payroll run.
+
+HB-EXIT-00 v3 2025-06-02 access=all 
+    # Leaving the company This page covers resignation, notice, handover and the return of equipment. It applies to permanent employees. Contractors should refer to their statement of work, which sets its own termination terms and is not covered here. ## Before you resign Speak to your people partner first. Many of the reasons people resign are things the company can address, including role changes, team moves and compensation reviews outside the normal cycle. A conversation costs nothing and is treated as confidential. If you have already decided, the people partner will still help you plan the handover so the exit is clean for your team. ## How to resign Resignation
+
+HB-EXIT-01 v3 2025-06-02 access=all 
+    is submitted in writing to your line manager, with your people partner copied. Email is sufficient; a signed letter is not required. State your intended last working day. Your manager confirms receipt in writing within two working days, and the people partner confirms the notice period that applies to your contract. ## Handover Plan for a two-week handover inside your notice period. Document anything only you know, name a successor for each ongoing responsibility, and transfer ownership of shared documents and repositories. Your manager is accountable for the handover being complete, and will schedule a review in the final week. ## Notice periods by office Notice periods are set by
+
+HB-EXIT-02 v3 2025-06-02 access=all 
+    the contracting office and differ by country. | Office | Under 2 years' service | 2 to 5 years | Over 5 years | | --- | --- | --- | --- | | Dublin | 4 weeks | 6 weeks | 12 weeks | | Amsterdam | 1 month | 1 month | 2 months | | Berlin | 4 weeks to month end | 1 month to month end | 3 months to quarter end | | London | 4 weeks | 8 weeks | 12 weeks | | Singapore | 4 weeks | 8 weeks | 12 weeks | Garden leave may be applied at the company's
+
+HB-EXIT-03 v3 2025-06-02 access=all 
+    discretion for roles with access to commercially sensitive information. ## Final pay and equipment Final pay includes accrued untaken annual leave, calculated to your last working day. Company equipment is returned on or before your last working day using the prepaid courier label issued by IT.
+
+HB-ONBOARD-00 v1 2025-02-03 access=all 
+    # Onboarding ## First week Your manager arranges a buddy, a team introduction and access to the systems your role needs. IT ships equipment to arrive before your start date. ## Probation Probation is 6 months. A formal review happens at 3 months and at 6 months. ## Benefits enrolment Enrol in pension and health cover within 30 days of your start date. Enrolment outside that window waits for the next annual window.
+
+HB-PAR-2022-00 v2 2022-03-15 access=all 
+    # Parental leave policy This policy sets out parental leave entitlement for all employees. The company offers a single global entitlement regardless of contracting office. ## Entitlement All employees who become a parent are entitled to 12 weeks of paid parental leave, equal to 60 working days, at 60% of base salary. There is no distinction based on caregiver role, and the entitlement is the same whether the employee is the birth parent, the adoptive parent or the partner of either. Parental leave must be taken in a single continuous block within six months of the birth or placement. The block may not be split, and any portion not taken
+
+HB-PAR-2022-01 v2 2022-03-15 access=all 
+    within six months is lost. Employees on probation accrue the entitlement but may only take it once probation has completed. ## Interaction with statutory leave Company parental leave runs alongside any statutory entitlement in the employee's country of employment. Where the statutory entitlement is more generous than the company figure above, the statutory entitlement applies and the company tops up the difference in salary only. ## Notice and approval Give at least four weeks' notice in writing. Approval is confirmed by your line manager, who records the dates with payroll before the leave begins.
+
+HB-PAR-2024-00 v4 2024-11-01 access=all 
+    # Parental leave policy This policy sets out parental leave entitlement for all employees. Entitlement differs by country office because statutory minimums differ. Managers should read the section for the employee's contracting office, not their own. ## Ireland ╖ Dublin office Employees contracted to the Dublin office receive the entitlement below. Parental leave in Ireland is governed by the Parental Leave Acts, and company parental leave runs concurrently with any statutory parental leave the employee claims. Parental leave must be taken within two years of the birth or placement. | Entitlement | Weeks | Working days | Salary top-up | | --- | --- | --- | --- | |
+
+HB-PAR-2024-01 v4 2024-11-01 access=all 
+    Primary caregiver | 18 | 90 | 70% for the first 12 weeks | | Secondary caregiver | 6 | 30 | 70% for the first 4 weeks | ## Netherlands ╖ Amsterdam office | Entitlement | Weeks | Working days | Salary top-up | | --- | --- | --- | --- | | Primary caregiver | 26 | 130 | 100% for the first 9 weeks | | Secondary caregiver | 10 | 50 | 100% for the first 6 weeks | Employees contracted to the Amsterdam office may spread the entitlement over the first twelve months. Requests are submitted through the HR portal. ## Germany ╖ Berlin
+
+HB-PAR-2024-02 v4 2024-11-01 access=all 
+    office | Entitlement | Weeks | Working days | Salary top-up | | --- | --- | --- | --- | | Primary caregiver | 24 | 120 | 80% for the first 8 weeks | | Secondary caregiver | 8 | 40 | 80% for the first 5 weeks | ## Notice and approval Give at least eight weeks' notice where possible. Approval is confirmed by the people partner for the contracting office within ten working days.
+
+HB-HOURS-00 v3 2025-04-20 access=all 
+    # Working hours and remote work ## Core hours Core hours are 10:00 to 16:00 in your contracting office's local time. Outside core hours you manage your own schedule with your team. ## Remote work Employees may work remotely up to 3 days per week by default. Fully remote arrangements are agreed case by case and recorded in the contract. ## Working from another country Working from a country other than your contracting country is limited to 20 working days per calendar year, for tax and social security reasons. Longer periods need a formal review.
+

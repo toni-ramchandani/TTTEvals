@@ -66,7 +66,7 @@ def _timeout() -> float:
 def _route(model: str) -> tuple[str, str, str, dict]:
     """Model string -> (kind, model name, base URL, headers).
 
-    "ollama/llama3.1:8b"       Ollama's own API on this machine
+    "ollama/gemma4:latest"       Ollama's own API on this machine
     "openai/gpt-5.4-mini"      OpenAI (a bare name like "gpt-5.4-mini" also works)
     "gemini/gemini-3.6-flash"  Google, through its OpenAI-compatible endpoint
     "anthropic/claude-..."     Anthropic, through its OpenAI-compatible endpoint

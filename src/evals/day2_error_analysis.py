@@ -84,17 +84,18 @@ def open_coding_sheet(traces: list[Trace], path: str | Path) -> Path:
 
 
 def load_annotations(path: str | Path) -> list[Annotation]:
+    from evals.day2_sheets import read_rows  # a sheet a person may have saved from Excel
+
     out = []
-    with Path(path).open(encoding="utf-8") as fh:
-        for row in csv.DictReader(fh):
-            if not row.get("open_code"):
-                continue
-            out.append(Annotation(
-                trace_id=row["trace_id"],
-                query=row["query"],
-                open_code=row["open_code"],
-                acceptable=row.get("acceptable", "").strip().lower() in {"1", "y", "yes", "true"},
-            ))
+    for row in read_rows(Path(path)):
+        if not row.get("open_code"):
+            continue
+        out.append(Annotation(
+            trace_id=row["trace_id"],
+            query=row["query"],
+            open_code=row["open_code"],
+            acceptable=row.get("acceptable", "").strip().lower() in {"1", "y", "yes", "true"},
+        ))
     return out
 
 

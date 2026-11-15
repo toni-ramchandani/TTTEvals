@@ -195,11 +195,20 @@ def main(argv: list[str] | None = None) -> int:
         b_name, path = next(iter(others.items()))
         b = labels_from_sheet(items, path)
     example = not a or not b
-    if example:
+    if example and not DEFAULT.offline:
+        # Live: never measure your answers against labels written for other
+        # answers. The example annotators belong to the reference run only.
         if a and not b:
             print(f"Your sheet has {len(a)} labelled traces, and no second sheet exists yet. Ask a")
             print("partner to label the same traces, without seeing yours:")
-            print("  python run.py day2 --annotate --annotator NAME\n")
+        else:
+            print("Two sheets with labels are needed: yours, and a second person's. Label first:")
+            print("  python run.py day2 --annotate")
+        print("  python run.py day2 --annotate --annotator NAME")
+        print("\nThen run this again. To see the method on the reference run's example")
+        print("annotators instead:  python run.py agreement --offline")
+        return 0
+    if example:
         a_name, a = "A", labels_from_example(items, "A")
         b_name, b = "B", labels_from_example(items, "B")
         if not a:

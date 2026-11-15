@@ -37,13 +37,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT)]
 
-from evals.day3_judges import judge_groundedness  # noqa: E402
-from evals.day3_retrieval import context_recall_from_dropped, precision_at_k, recall_at_k  # noqa: E402
+from evals.day3_judges import correct_check, grounded_check, judge_groundedness  # noqa: E402
+from evals.day3_retrieval import retrieval_row  # noqa: E402
+from evals.day3_sheet import acceptable_labels  # noqa: E402
 from helix import DEFAULT  # noqa: E402
 from helix.console import banner, traces_note  # noqa: E402
-from scripts.day3 import correct_check, grounded_check, human_labels, relevant_ids  # noqa: E402
 from toolkits import env  # noqa: E402
 from toolkits.cases import cases_from_traces  # noqa: E402
+from toolkits.kits import Kits, val  # noqa: E402
+from helix.ingest import chunk_corpus  # noqa: E402
 from tracing import read_jsonl  # noqa: E402
 
 TRACES = ROOT / "data" / "traces" / "day1.jsonl"
@@ -68,52 +70,6 @@ def fmt(v) -> str:
     return f"{v:.2f}"
 
 
-class Kits:
-    """Whichever toolkits are installed, with one judge each, counting calls."""
-
-    def __init__(self, cfg) -> None:
-        self.cfg = cfg
-        self.deepeval = self.ragas = None
-        self.stats = None
-        if cfg.offline:
-            return
-        env.prepare()
-        from toolkits.judge import JudgeStats
-
-        self.stats = JudgeStats()
-        if env.installed("deepeval"):
-            from toolkits import deepeval_metrics as D
-            from toolkits.judge import deepeval_judge
-
-            self.D, self.deepeval = D, deepeval_judge(cfg, self.stats)
-        if env.installed("ragas"):
-            from toolkits import ragas_metrics as R
-            from toolkits.judge import ragas_embeddings, ragas_llm
-
-            self.R = R
-            self.ragas = R.build(ragas_llm(cfg, self.stats), ragas_embeddings(cfg))
-
-    def d(self, metric_name: str, case):
-        if not self.deepeval:
-            return None
-        from toolkits.cases import to_deepeval
-
-        builders = {**self.D.rag_metrics(self.deepeval), **self.D.agent_metrics(self.deepeval)}
-        return self.D.run(builders[metric_name], to_deepeval(case))
-
-    def r(self, metric_name: str, case):
-        if not self.ragas:
-            return None
-        return self.R.score(metric_name, self.ragas[metric_name], case)
-
-    def missing(self) -> list[str]:
-        return [n for n, v in (("DeepEval", self.deepeval), ("Ragas", self.ragas)) if v is None]
-
-
-def val(m) -> float | None:
-    return None if m is None else m.score
-
-
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--only", default="retrieval,faithfulness,agent",
@@ -131,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     traces = read_jsonl(TRACES)
     traces_note(traces, cfg)
     suite = json.loads(SUITE.read_text(encoding="utf-8"))["queries"]
-    human, source = human_labels(suite, traces)
+    human, source = acceptable_labels(suite, traces)
     pairs = list(zip(suite, traces, cases_from_traces(traces, suite), human))
     if args.ids:
         keep = {x.strip() for x in args.ids.split(",")}
@@ -148,22 +104,23 @@ def main(argv: list[str] | None = None) -> int:
         rule("STEP 1  Retrieval: did the evidence arrive, and where was it lost?")
         print("Ours: rank metrics against the chunks carrying the expected evidence, and")
         print("the stage that dropped them. Toolkits: a judge reads each context and")
-        print("decides whether it is useful for the reference answer.\n")
-        print(f"{'id':<4} {'P@3':>5} {'R@5':>5}  {'lost at (trace)':<22} {'Ragas P':>8} {'Ragas R':>8} "
+        print("decides whether it is useful for the reference answer. Here the toolkits")
+        print("read the chunks that reached the model; for each stage of the ranking,")
+        print("run  python run.py toolkits --module 07\n")
+        print(f"{'id':<4} {'P@5':>5} {'R@5':>5}  {'evidence went (trace)':<22} {'Ragas P':>8} {'Ragas R':>8} "
               f"{'DeepEval P':>11} {'DeepEval R':>11}")
         print("-" * 78)
+        corpus = chunk_corpus(cfg)
         for q, t, c, _ in pairs:
-            rel = relevant_ids(t, q.get("expected_evidence", ""))
-            p3 = precision_at_k(t, rel, 3) if rel else None
-            r5 = recall_at_k(t, rel, 5) if rel else None
-            lost = context_recall_from_dropped(t, set(c.reference_context_ids))
-            where = ", ".join(f"{k} {v}" for k, v in lost.items()) or ("-" if not c.reference_context_ids else "nothing lost")
+            row = retrieval_row(t, corpus, q.get("expected_evidence"))
+            went = {w.removeprefix("dropped at ") for w in row["fate"].values()}
+            where = ", ".join(sorted(went)).replace("reached the model", "reached model") or "-"
             live = not cfg.offline
             rp = val(kits.r("context_precision", c)) if live else None
             rr = val(kits.r("context_recall", c)) if live else None
             dp = val(kits.d("contextual_precision", c)) if live else None
             dr = val(kits.d("contextual_recall", c)) if live else None
-            print(f"{q['id']:<4} {fmt(p3):>5} {fmt(r5):>5}  {where:<22} {fmt(rp):>8} {fmt(rr):>8} "
+            print(f"{q['id']:<4} {fmt(row['p']):>5} {fmt(row['r']):>5}  {where[:22]:<22} {fmt(rp):>8} {fmt(rr):>8} "
                   f"{fmt(dp):>11} {fmt(dr):>11}")
         print("\nOnly the trace can say where evidence was lost. A toolkit score that is")
         print("low tells you that something is missing, not which stage dropped it.")

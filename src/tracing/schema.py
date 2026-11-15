@@ -95,6 +95,12 @@ class Trace:
     #: "agentic" or "graphrag". Same schema for all three, so every evaluator
     #: in the workshop reads all three without modification.
     system: str = "helix"
+    #: Day 3, conversations: which session this turn belongs to, its number
+    #: (1, 2, ...), and the earlier messages the model saw. Empty for a
+    #: single question, so Day 1 and Day 2 traces read the same as before.
+    session_id: str = ""
+    turn: int = 0
+    history: list[dict[str, str]] = field(default_factory=list)
 
     def span(self, name: str) -> Span | None:
         for s in self.spans:

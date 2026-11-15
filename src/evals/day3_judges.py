@@ -1,9 +1,13 @@
-"""Day 3, Modules 06 and 08: LLM-as-judge, and validating it.
+"""Day 3, Module 08: groundedness and correctness, two judges and two checkers.
 
 An LLM judge is itself a system that needs evaluation. The circularity
 objection is real, and the answer is not to avoid judges but to measure them
-against human labels before trusting them. `validate` below is the part teams
-skip, and skipping it is how a dashboard ends up confidently wrong.
+against human labels before trusting them, on the judge's own criterion:
+the groundedness judge against people's grounded labels, the correctness
+judge against their correct labels (the Day 3 sheet, `evals.day3_sheet`).
+`measure` below reports TPR and TNR with their counts, as Day 2 does. That
+step is the one teams skip, and skipping it is how a dashboard ends up
+confidently wrong.
 
 Groundedness and correctness are scored separately on purpose. They are
 independent: an answer can be perfectly faithful to a stale document and
@@ -50,6 +54,38 @@ Differences in wording, length or formatting do not matter.
 Reply with one word, CORRECT or INCORRECT, then a new line with one short
 sentence explaining the difference if there is one.
 """
+
+
+#: The UMBRELA relevance prompt (Upadhyay et al. 2024, reproducing the Bing
+#: assessor of Thomas et al.), as Hands-On RAG for Production prints it. One
+#: call per (question, chunk). Day 3 measures it against the relevance the
+#: suite's expected evidence defines, before anyone trusts it.
+UMBRELA = """\
+Given a query and a passage, you must provide a score on an integer scale of 0 to 3 with the following meanings:
+0 = represents that the passage has nothing to do with the query,
+1 = represents that the passage seems related to the query but does not answer it,
+2 = represents that the passage has some answer for the query, but the answer may be a bit unclear, or hidden amongst extraneous information and
+3 = represents that the passage is dedicated to the query and contains the exact answer.
+Important Instructions:
+Assign category 1 if the passage is somewhat related to the topic but not completely, category 2 if the passage presents something very important related to the entire topic but also has some extra information, and category 3 if the passage only and entirely refers to the topic.
+If none of the above satisfies, give it category 0.
+Query: {query}
+Passage: {chunk}
+Split this problem into steps:
+Consider the underlying intent of the search.
+Measure how well the content matches a likely intent of the query (M).
+Measure how trustworthy the passage is (T).
+Consider the aspects above and the relative importance of each, and decide on final score (O). The final score must be an integer value only.
+Do not provide any code in the result. Provide each score in the format of a single integer without any reasoning.
+"""
+
+
+def judge_chunk_relevance(query: str, chunk_text: str, cfg: Config) -> int | None:
+    """0 to 3 from the judge; the last integer it writes is the final score (O)."""
+    raw = complete([{"role": "user", "content": UMBRELA.format(query=query, chunk=chunk_text)}],
+                   cfg, model=cfg.judge_model or None)[0]
+    found = re.findall(r"\b([0-3])\b", raw or "")
+    return int(found[-1]) if found else None
 
 
 @dataclass
@@ -109,23 +145,62 @@ def quadrant(grounded: bool, correct: bool) -> str:
     }[(grounded, correct)]
 
 
-def validate(judge_labels: list[bool], human_labels: list[bool]) -> dict[str, float]:
-    """Agreement between a judge and the humans it is meant to stand in for.
+# ---------------------------------------------------------------------------
+# The cheap checkers: free, instant, brittle. Every judge is compared with them.
+# ---------------------------------------------------------------------------
+_WORD = re.compile(r"[a-z0-9]+")
 
-    EXERCISE (Day 2, Module 06): a judge below roughly 0.8 agreement is not
-    yet a measuring instrument. Report true/false positive rates, not just
-    accuracy: a judge that calls everything GROUNDED scores well on a corpus
-    that is mostly grounded and tells you nothing.
+
+def words(text: str) -> set[str]:
+    return set(_WORD.findall((text or "").lower()))
+
+
+def grounded_check(trace: Trace) -> bool:
+    """Is the answer's content in the context it was given (word overlap, 75 percent)."""
+    reached = [c for c in trace.retrieved if not c.dropped_at]
+    if not reached:
+        return False
+    ctx: set[str] = set()
+    for c in reached:
+        ctx |= words(c.text) | words(c.heading_path)
+    content = [w for w in words(trace.answer) if len(w) > 4]
+    if not content:
+        return False
+    return sum(1 for w in content if w in ctx) / len(content) >= 0.75
+
+
+def correct_check(trace: Trace, ground_truth: str) -> bool:
+    """Does the answer carry the reference's key facts.
+
+    Numbers are the load-bearing part of a policy answer, so every figure in
+    the reference must appear. A parental-leave answer that gets one of two
+    numbers right is not half correct, it is wrong.
     """
-    assert len(judge_labels) == len(human_labels), "label sets must align"
-    n = len(human_labels) or 1
-    tp = sum(j and h for j, h in zip(judge_labels, human_labels))
-    tn = sum((not j) and (not h) for j, h in zip(judge_labels, human_labels))
-    fp = sum(j and (not h) for j, h in zip(judge_labels, human_labels))
-    fn = sum((not j) and h for j, h in zip(judge_labels, human_labels))
-    return {
-        "agreement": round((tp + tn) / n, 3),
-        "false_positive_rate": round(fp / max(fp + tn, 1), 3),
-        "false_negative_rate": round(fn / max(fn + tp, 1), 3),
-        "n": n,
-    }
+    nums = re.findall(r"\d+", ground_truth or "")
+    body = (trace.answer or "").lower()
+    if nums:
+        return all(n in body for n in nums)
+    keys = re.findall(r"[a-z]{6,}", (ground_truth or "").lower())[:3]
+    return bool(keys) and all(k in body for k in keys)
+
+
+# ---------------------------------------------------------------------------
+# Validation: a judge against people, on the judge's own criterion
+# ---------------------------------------------------------------------------
+#: The two criteria Day 3 judges. The Day 3 sheet holds one human label per
+#: criterion. Positive means the failure is present, as on Day 2: an
+#: ungrounded answer, an incorrect answer.
+CRITERIA = {
+    "grounded": "every factual claim is supported by the context the model was given "
+                "(a refusal makes no claim, so it is grounded)",
+    "correct": "the answer gives the reference's substantive answer to the question asked",
+    "complete": "the answer contains every vital fact the question needs "
+                "(for a question Helix must decline, the vital fact is the refusal)",
+}
+
+
+def measure(instrument_pass: list[bool | None], human_pass: list[bool]) -> dict[str, object]:
+    """TPR and TNR with their counts, exactly as Day 2 measures an evaluator."""
+    from evals.day2_evaluators import rates
+
+    return rates(instrument_pass, human_pass)

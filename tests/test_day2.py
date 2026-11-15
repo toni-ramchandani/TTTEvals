@@ -297,7 +297,8 @@ def test_the_whole_reference_run_from_a_clean_copy(tmp_path):
         src = ROOT / part
         (shutil.copytree if src.is_dir() else shutil.copy)(src, tmp_path / part)
     (tmp_path / "data" / "queries").mkdir(parents=True)
-    for name in ("day1_seed.json", "architectures.json"):
+    for name in ("day1_seed.json", "architectures.json", "day3_conversations.json", "day3_robustness.json",
+                 "day3_agent_scope.json"):
         shutil.copy(ROOT / "data" / "queries" / name, tmp_path / "data" / "queries" / name)
     run = subprocess.run([sys.executable, "run.py", "all", "--offline"], cwd=tmp_path,
                          capture_output=True, text=True, timeout=300)
