@@ -1,0 +1,30 @@
+﻿# Day 4: the release gate on every pull request (an example to adapt).
+#
+# Runs the reference gate: the offline stub, so no model and no key is
+# needed, and the result is the same on every run. It proves the floors and
+# the ratchet on retrieval, access and citation, which the stub reproduces;
+# it cannot judge generation. A real team adds a second job that runs the
+# same command live against a pinned model it controls, nightly or on
+# changes to the prompt or model.
+#
+# As shipped this job fails, on purpose: the gate blocks the capstone's
+# candidate on a13 until a named person accepts that regression in
+# data/queries/day4_suite_changes.json. That is the gate doing its job.
+name: day4-release-gate
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Core environment (numpy only)
+        run: pip install -r requirements.txt
+      - name: The Day 4 gate, as a script (exit 1 on BLOCK)
+        run: python run.py day4 --offline --candidate candidate --strict
